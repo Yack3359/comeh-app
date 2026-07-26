@@ -50,11 +50,13 @@ const seasons: SeasonSeed[] = [
 
 async function seedAdmin() {
   const email = (process.env.ADMIN_EMAIL ?? "admin@comeh.local").trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD ?? "change-this-password";
+  const password = process.env.ADMIN_PASSWORD;
   const name = process.env.ADMIN_NAME ?? "Administrateur COMEH";
 
-  if (password.length < 12) {
-    throw new Error("ADMIN_PASSWORD doit contenir au moins 12 caractères.");
+  if (!password || password.length < 12) {
+    throw new Error(
+      "ADMIN_PASSWORD doit être défini explicitement dans .env (au moins 12 caractères) — aucun mot de passe par défaut n'est autorisé.",
+    );
   }
 
   const passwordHash = await hash(password, 12);
