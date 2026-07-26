@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN        @map("admin")
+  COMEH_MEMBER @map("comeh_member")
+  READONLY     @map("readonly")
+}
+
+enum ExpenseType {
+  ACCOMMODATION @map("hebergement")
+  TRAVEL        @map("deplacement")
+}
+
+enum ExpenseSource {
+  MANUAL @map("manuel")
+  IMPORT @map("import")
+}
+
+enum Gender {
+  FEMALE @map("femme")
+  MALE   @map("homme")
+  OTHER  @map("autre")
+}
+
+enum Handedness {
+  RIGHT_HANDED @map("droitier")
+  LEFT_HANDED  @map("gaucher")
+}
+
+enum GripType {
+  CROSS    @map("cross")
+  STRAIGHT @map("droite")
+}
+
+enum PlayStyle {
+  OFFENSIVE         @map("offensif")
+  COUNTER_OFFENSIVE @map("contre_offensif")
+  DEFENSIVE         @map("defensif")
+  MIXED             @map("mixte")
+  OTHER             @map("autre")
+}
+
+enum ImportSourceType {
+  PDF   @map("pdf")
+  IMAGE @map("image")
+  EXCEL @map("excel")
+}
+
+enum ImportStatus {
+  PENDING   @map("pending")
+  EXTRACTED @map("extracted")
+  VALIDATED @map("validated")
+  FAILED    @map("failed")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  passwordHash  String        @map("password_hash")
+  name          String
+  role          Role          @default(COMEH_MEMBER)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  auditLogs     AuditLog[]
+  expenses      Expense[]     @relation("ExpenseCreator")
+  importBatches ImportBatch[]
+
+  @@map("users")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  diffJson   Json?    @map("diff_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model Season {
+  id                     String                  @id @default(cuid())
+  label                  String                  @unique
+  startDate              DateTime                @map("start_date") @db.Date
+  endDate                DateTime                @map("end_date") @db.Date
+  fiscalYears            FiscalYear[]            @relation("SeasonFiscalYears")
+  budgetCategories       BudgetCategory[]
+  budgets                Budget[]
+  expenses               Expense[]
+  athleteCategorySeasons AthleteCategorySeason[]
+  teams                  Team[]
+  competitions           Competition[]
+
+  @@map("seasons")
+}
+
+model FiscalYear {
+  id        String   @id @default(cuid())
+  label     String   @unique
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  seasons   Season[] @relation("SeasonFiscalYears")
+
+  @@map("fiscal_years")
+}
+
+model BudgetCategory {
+  id       String    @id @default(cuid())
+  name     String
+  seasonId String    @map("season_id")
+  season   Season    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  budgets  Budget[]
+  expenses Expense[]
+
+  @@unique([seasonId, name])
+  @@index([seasonId])
+  @@map("budget_categories")
+}
+
+model Budget {
+  id            String         @id @default(cuid())
+  seasonId      String         @map("season_id")
+  categoryId    String         @map("category_id")
+  plannedAmount Decimal        @map("planned_amount") @db.Decimal(12, 2)
+  season        Season         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  category      BudgetCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, categoryId])
+  @@index([categoryId])
+  @@map("budgets")
+}
+
+model Expense {
+  id            String         @id @default(cuid())
+  seasonId      String         @map("season_id")
+  categoryId    String         @map("category_id")
+  type          ExpenseType
+  amount        Decimal        @db.Decimal(12, 2)
+  date          DateTime       @db.Date
+  description   String
+  competitionId String?        @map("competition_id")
+  tripId        String?        @map("trip_id")
+  createdById   String         @map("created_by")
+  source        ExpenseSource  @default(MANUAL)
+  attachmentUrl String?        @map("attachment_url")
+  season        Season         @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  category      BudgetCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  competition   Competition?   @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  trip          Trip?          @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  createdBy     User           @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([seasonId, date])
+  @@index([categoryId])
+  @@index([competitionId])
+  @@index([tripId])
+  @@index([createdById])
+  @@map("expenses")
+}
+
+model Trip {
+  id            String      @id @default(cuid())
+  competitionId String      @map("competition_id")
+  destination   String
+  startDate     DateTime    @map("start_date") @db.Date
+  endDate       DateTime    @map("end_date") @db.Date
+  participants  Json
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  expenses      Expense[]
+
+  @@index([competitionId])
+  @@map("trips")
+}
+
+model Athlete {
+  id              String                  @id @default(cuid())
+  firstName       String                  @map("first_name")
+  lastName        String                  @map("last_name")
+  gender          Gender
+  country         String
+  handedness      Handedness?
+  gripType        GripType?               @map("grip_type")
+  playStyle       PlayStyle?              @map("play_style")
+  club            String?
+  categorySeasons AthleteCategorySeason[]
+  results         Result[]                @relation("ResultAthlete")
+  opponentResults Result[]                @relation("ResultOpponent")
+
+  @@index([lastName, firstName])
+  @@index([country])
+  @@map("athletes")
+}
+
+model AthleteCategorySeason {
+  athleteId String  @map("athlete_id")
+  seasonId  String  @map("season_id")
+  category  String
+  athlete   Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  season    Season  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@id([athleteId, seasonId])
+  @@index([seasonId, category])
+  @@map("athlete_category_seasons")
+}
+
+model Team {
+  id       String   @id @default(cuid())
+  name     String
+  seasonId String   @map("season_id")
+  season   Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  results  Result[]
+
+  @@unique([seasonId, name])
+  @@index([seasonId])
+  @@map("teams")
+}
+
+model Competition {
+  id       String    @id @default(cuid())
+  name     String
+  location String
+  country  String
+  date     DateTime  @db.Date
+  seasonId String    @map("season_id")
+  level    String
+  season   Season    @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  results  Result[]
+  expenses Expense[]
+  trips    Trip[]
+
+  @@index([seasonId, date])
+  @@map("competitions")
+}
+
+model Result {
+  id                String      @id @default(cuid())
+  competitionId     String      @map("competition_id")
+  athleteId         String?     @map("athlete_id")
+  teamId            String?     @map("team_id")
+  opponentAthleteId String?     @map("opponent_athlete_id")
+  rank              Int?
+  score             String?
+  round             String?
+  competition       Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  athlete           Athlete?    @relation("ResultAthlete", fields: [athleteId], references: [id], onDelete: SetNull)
+  team              Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  opponentAthlete   Athlete?    @relation("ResultOpponent", fields: [opponentAthleteId], references: [id], onDelete: SetNull)
+
+  @@index([competitionId])
+  @@index([athleteId])
+  @@index([teamId])
+  @@index([opponentAthleteId])
+  @@map("results")
+}
+
+model ImportBatch {
+  id                String           @id @default(cuid())
+  userId            String           @map("user_id")
+  sourceType        ImportSourceType @map("source_type")
+  fileUrl           String           @map("file_url")
+  status            ImportStatus     @default(PENDING)
+  rawExtractionJson Json?            @map("raw_extraction_json")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  user              User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("import_batches")
+}
