@@ -251,6 +251,7 @@ model Result {
   rank              Int?
   score             String?
   round             String?
+  won               Boolean?
   competition       Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   athlete           Athlete?    @relation("ResultAthlete", fields: [athleteId], references: [id], onDelete: SetNull)
   team              Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
