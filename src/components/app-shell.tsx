@@ -1,6 +1,12 @@
 import type { Session } from "next-auth";
 import Link from "next/link";
-import { Gauge, LogOut, ShieldCheck, WalletCards } from "lucide-react";
+import {
+  Gauge,
+  LogOut,
+  Medal,
+  ShieldCheck,
+  WalletCards,
+} from "lucide-react";
 
 import { roleLabels } from "@/lib/permissions";
 
@@ -65,6 +71,13 @@ export function AppShell({ children, session }: AppShellProps) {
             >
               <WalletCards className="h-4 w-4" />
               Frais & budget
+            </Link>
+            <Link
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary-50"
+              href="/rankings"
+            >
+              <Medal className="h-4 w-4" />
+              Rankings
             </Link>
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-500">
               <ShieldCheck className="h-4 w-4" />
