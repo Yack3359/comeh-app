@@ -2,6 +2,11 @@ import { compare } from "bcryptjs";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
+import {
+  clearLoginAttempts,
+  isLoginRateLimited,
+  registerFailedLoginAttempt,
+} from "@/lib/login-rate-limit";
 import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
@@ -33,13 +38,22 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        if (isLoginRateLimited(email)) {
+          throw new Error(
+            "Trop de tentatives échouées. Réessayez dans quelques minutes.",
+          );
+        }
+
         const user = await prisma.user.findUnique({
           where: { email },
         });
 
         if (!user || !(await compare(password, user.passwordHash))) {
+          registerFailedLoginAttempt(email);
           return null;
         }
+
+        clearLoginAttempts(email);
 
         return {
           id: user.id,
