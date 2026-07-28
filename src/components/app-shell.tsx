@@ -5,6 +5,7 @@ import {
   Gauge,
   LogOut,
   Medal,
+  ScrollText,
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
@@ -93,6 +94,15 @@ export function AppShell({ children, session }: AppShellProps) {
               >
                 <FileUp className="h-4 w-4" />
                 Import IA
+              </Link>
+            ) : null}
+            {session.user.role === Role.ADMIN ? (
+              <Link
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary-50"
+                href="/audit"
+              >
+                <ScrollText className="h-4 w-4" />
+                Journal d’audit
               </Link>
             ) : null}
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-500">

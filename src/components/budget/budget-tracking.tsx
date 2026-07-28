@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertTriangle, BadgeEuro, RefreshCw, TrendingDown } from "lucide-react";
+import {
+  AlertTriangle,
+  BadgeEuro,
+  Download,
+  RefreshCw,
+  TrendingDown,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -180,23 +186,38 @@ export function BudgetTracking({
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-start justify-between space-y-0">
+        <CardHeader className="items-start gap-4 space-y-0 sm:flex-row sm:justify-between">
           <div className="space-y-1.5">
             <CardTitle className="text-xl">Consommation du budget</CardTitle>
             <CardDescription>
               Calculée à partir des dépenses enregistrées au moment du chargement.
             </CardDescription>
           </div>
-          <Button
-            aria-label="Actualiser le suivi"
-            disabled={isLoading}
-            onClick={() => void loadTracking()}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <a
+                download
+                href={`/api/budget-tracking/export?seasonId=${encodeURIComponent(
+                  seasonId,
+                )}`}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Exporter en CSV
+              </a>
+            </Button>
+            <Button
+              aria-label="Actualiser le suivi"
+              disabled={isLoading}
+              onClick={() => void loadTracking()}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", isLoading && "animate-spin")}
+              />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="rounded-lg border bg-slate-50 p-4">
