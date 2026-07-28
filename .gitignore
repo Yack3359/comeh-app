@@ -12,6 +12,7 @@
 
 # production
 /build
+/storage/
 
 # local tooling
 /.npm-cache/

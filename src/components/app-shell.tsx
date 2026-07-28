@@ -1,14 +1,16 @@
 import type { Session } from "next-auth";
 import Link from "next/link";
 import {
+  FileUp,
   Gauge,
   LogOut,
   Medal,
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
+import { Role } from "@prisma/client";
 
-import { roleLabels } from "@/lib/permissions";
+import { hasAnyRole, roleLabels } from "@/lib/permissions";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -16,6 +18,11 @@ type AppShellProps = {
 };
 
 export function AppShell({ children, session }: AppShellProps) {
+  const canImport = hasAnyRole(session.user.role, [
+    Role.ADMIN,
+    Role.COMEH_MEMBER,
+  ]);
+
   return (
     <div className="min-h-screen bg-secondary-muted">
       <header className="border-b border-primary/10 bg-secondary shadow-sm">
@@ -79,6 +86,15 @@ export function AppShell({ children, session }: AppShellProps) {
               <Medal className="h-4 w-4" />
               Rankings
             </Link>
+            {canImport ? (
+              <Link
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary-50"
+                href="/imports"
+              >
+                <FileUp className="h-4 w-4" />
+                Import IA
+              </Link>
+            ) : null}
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-500">
               <ShieldCheck className="h-4 w-4" />
               Socle sécurisé
