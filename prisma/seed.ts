@@ -46,6 +46,15 @@ const seasons: SeasonSeed[] = [
       { label: "2026", startDate: date("2026-01-01"), endDate: date("2026-12-31") },
     ],
   },
+  {
+    label: "26/27",
+    startDate: date("2026-09-01"),
+    endDate: date("2027-07-31"),
+    fiscalYears: [
+      { label: "2026", startDate: date("2026-01-01"), endDate: date("2026-12-31") },
+      { label: "2027", startDate: date("2027-01-01"), endDate: date("2027-12-31") },
+    ],
+  },
 ];
 
 async function seedAdmin() {

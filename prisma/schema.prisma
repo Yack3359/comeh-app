@@ -47,6 +47,22 @@ enum PlayStyle {
   OTHER             @map("autre")
 }
 
+enum Weapon {
+  EPEE    @map("epee")
+  FLEURET @map("fleuret")
+  SABRE   @map("sabre")
+}
+
+enum FencingCategory {
+  SENIOR   @map("senior")
+  U23      @map("u23")
+  M20      @map("m20")
+  M17      @map("m17")
+  M15      @map("m15")
+  M13      @map("m13")
+  VETERAN  @map("veteran")
+}
+
 enum ImportSourceType {
   PDF   @map("pdf")
   IMAGE @map("image")
@@ -202,11 +218,11 @@ model Athlete {
 }
 
 model AthleteCategorySeason {
-  athleteId String  @map("athlete_id")
-  seasonId  String  @map("season_id")
-  category  String
-  athlete   Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  season    Season  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  athleteId String          @map("athlete_id")
+  seasonId  String          @map("season_id")
+  category  FencingCategory
+  athlete   Athlete         @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  season    Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@id([athleteId, seasonId])
   @@index([seasonId, category])
@@ -226,19 +242,23 @@ model Team {
 }
 
 model Competition {
-  id       String    @id @default(cuid())
+  id       String           @id @default(cuid())
   name     String
   location String
   country  String
-  date     DateTime  @db.Date
-  seasonId String    @map("season_id")
+  date     DateTime         @db.Date
+  seasonId String           @map("season_id")
   level    String
-  season   Season    @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  weapon   Weapon?
+  gender   Gender?
+  category FencingCategory?
+  season   Season           @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   results  Result[]
   expenses Expense[]
   trips    Trip[]
 
   @@index([seasonId, date])
+  @@index([weapon, gender, category])
   @@map("competitions")
 }
 

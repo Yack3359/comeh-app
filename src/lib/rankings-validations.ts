@@ -1,8 +1,10 @@
 import {
+  FencingCategory,
   Gender,
   GripType,
   Handedness,
   PlayStyle,
+  Weapon,
 } from "@prisma/client";
 import { z } from "zod";
 
@@ -59,7 +61,7 @@ export const athleteQuerySchema = z.object({
 
 export const athleteCategorySchema = z.object({
   seasonId: rankingIdSchema,
-  category: requiredText("La catégorie", 80),
+  category: z.nativeEnum(FencingCategory),
 });
 
 export const teamCreateSchema = z.object({
@@ -80,6 +82,9 @@ export const competitionCreateSchema = z.object({
   date: dateSchema,
   level: requiredText("Le niveau", 80),
   seasonId: rankingIdSchema,
+  weapon: z.nativeEnum(Weapon).nullable().optional(),
+  gender: z.nativeEnum(Gender).nullable().optional(),
+  category: z.nativeEnum(FencingCategory).nullable().optional(),
 });
 
 export const competitionUpdateSchema = competitionCreateSchema;
