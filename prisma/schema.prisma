@@ -218,11 +218,12 @@ model Athlete {
 }
 
 model AthleteCategorySeason {
-  athleteId String          @map("athlete_id")
-  seasonId  String          @map("season_id")
-  category  FencingCategory
-  athlete   Athlete         @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  season    Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  athleteId     String          @map("athlete_id")
+  seasonId      String          @map("season_id")
+  category      FencingCategory
+  rankingPoints Decimal?        @map("ranking_points") @db.Decimal(10, 2)
+  athlete       Athlete         @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  season        Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@id([athleteId, seasonId])
   @@index([seasonId, category])
