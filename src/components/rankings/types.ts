@@ -5,9 +5,27 @@ export type Season = {
   endDate: string;
 };
 
+export type GenderValue = "FEMALE" | "MALE" | "OTHER";
+export type WeaponValue = "EPEE" | "FLEURET" | "SABRE";
+export type FencingCategoryValue =
+  | "SENIOR"
+  | "U23"
+  | "M20"
+  | "M17"
+  | "M15"
+  | "M13"
+  | "VETERAN";
+
+export type CompetitionFilters = {
+  enabled: boolean;
+  weapon: WeaponValue | "all";
+  gender: GenderValue | "all";
+  categoryExclude: FencingCategoryValue | "none";
+};
+
 export type AthleteCategory = {
   seasonId: string;
-  category: string;
+  category: FencingCategoryValue;
   season: {
     label: string;
     startDate: string;
@@ -18,7 +36,7 @@ export type Athlete = {
   id: string;
   firstName: string;
   lastName: string;
-  gender: "FEMALE" | "MALE" | "OTHER";
+  gender: GenderValue;
   country: string;
   handedness: "RIGHT_HANDED" | "LEFT_HANDED" | null;
   gripType: "CROSS" | "STRAIGHT" | null;
@@ -53,6 +71,9 @@ export type Competition = {
   date: string;
   level: string;
   seasonId: string;
+  weapon: WeaponValue | null;
+  gender: GenderValue | null;
+  category: FencingCategoryValue | null;
   season: { label: string };
   _count: { results: number };
 };
@@ -104,7 +125,7 @@ export type AthleteHistoryData = {
     label: string;
     startDate: string;
     endDate: string;
-    category: string | null;
+    category: FencingCategoryValue | null;
     rankings: Array<{
       id: string;
       rank: number;

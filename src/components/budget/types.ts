@@ -56,5 +56,11 @@ export type TrackingData = {
   remaining: number;
   percentage: number;
   categories: TrackingRow[];
+  fiscalYears: Array<{
+    id: string;
+    label: string;
+    startDate: string;
+    endDate: string;
+    spent: number;
+  }>;
 };
-

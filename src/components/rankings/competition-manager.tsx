@@ -14,6 +14,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -22,8 +29,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { Competition, Season } from "./types";
-import { formatDate, requestJson } from "./utils";
+import type {
+  Competition,
+  FencingCategoryValue,
+  GenderValue,
+  Season,
+  WeaponValue,
+} from "./types";
+import {
+  fencingCategoryLabels,
+  formatDate,
+  genderLabels,
+  requestJson,
+  weaponLabels,
+} from "./utils";
 
 type CompetitionManagerProps = {
   seasons: Season[];
@@ -39,6 +58,9 @@ type CompetitionForm = {
   country: string;
   date: string;
   level: string;
+  weapon: WeaponValue | "NONE";
+  gender: GenderValue | "NONE";
+  category: FencingCategoryValue | "NONE";
 };
 
 const emptyForm: CompetitionForm = {
@@ -47,6 +69,9 @@ const emptyForm: CompetitionForm = {
   country: "",
   date: "",
   level: "",
+  weapon: "NONE",
+  gender: "NONE",
+  category: "NONE",
 };
 
 export function CompetitionManager({
@@ -107,7 +132,13 @@ export function CompetitionManager({
         editingId ? `/api/competitions/${editingId}` : "/api/competitions",
         {
           method: editingId ? "PATCH" : "POST",
-          body: JSON.stringify({ ...form, seasonId }),
+          body: JSON.stringify({
+            ...form,
+            seasonId,
+            weapon: form.weapon === "NONE" ? null : form.weapon,
+            gender: form.gender === "NONE" ? null : form.gender,
+            category: form.category === "NONE" ? null : form.category,
+          }),
         },
       );
       resetForm();
@@ -159,6 +190,9 @@ export function CompetitionManager({
       country: competition.country,
       date: competition.date.slice(0, 10),
       level: competition.level,
+      weapon: competition.weapon ?? "NONE",
+      gender: competition.gender ?? "NONE",
+      category: competition.category ?? "NONE",
     });
   }
 
@@ -176,7 +210,7 @@ export function CompetitionManager({
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={saveCompetition}>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-2 lg:col-span-2">
                   <Label htmlFor="competition-name">Nom</Label>
                   <Input
@@ -239,7 +273,7 @@ export function CompetitionManager({
                     value={form.date}
                   />
                 </div>
-                <div className="space-y-2 lg:col-span-2">
+                <div className="space-y-2">
                   <Label htmlFor="competition-level">Niveau</Label>
                   <Input
                     id="competition-level"
@@ -254,6 +288,95 @@ export function CompetitionManager({
                     required
                     value={form.level}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="competition-weapon">
+                    Arme{" "}
+                    <span className="font-normal text-slate-400">
+                      (facultatif)
+                    </span>
+                  </Label>
+                  <Select
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        weapon: value as CompetitionForm["weapon"],
+                      }))
+                    }
+                    value={form.weapon}
+                  >
+                    <SelectTrigger id="competition-weapon">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Non renseignée</SelectItem>
+                      {Object.entries(weaponLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="competition-gender">
+                    Sexe{" "}
+                    <span className="font-normal text-slate-400">
+                      (facultatif)
+                    </span>
+                  </Label>
+                  <Select
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        gender: value as CompetitionForm["gender"],
+                      }))
+                    }
+                    value={form.gender}
+                  >
+                    <SelectTrigger id="competition-gender">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Non renseigné</SelectItem>
+                      {Object.entries(genderLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="competition-category">
+                    Catégorie{" "}
+                    <span className="font-normal text-slate-400">
+                      (facultatif)
+                    </span>
+                  </Label>
+                  <Select
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        category: value as CompetitionForm["category"],
+                      }))
+                    }
+                    value={form.category}
+                  >
+                    <SelectTrigger id="competition-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Non renseignée</SelectItem>
+                      {Object.entries(fencingCategoryLabels).map(
+                        ([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -299,6 +422,7 @@ export function CompetitionManager({
                 <TableHead>Date</TableHead>
                 <TableHead>Compétition</TableHead>
                 <TableHead>Niveau</TableHead>
+                <TableHead>Épreuve</TableHead>
                 <TableHead>Résultats</TableHead>
                 {canManage ? <TableHead className="text-right">Actions</TableHead> : null}
               </TableRow>
@@ -316,6 +440,22 @@ export function CompetitionManager({
                     </p>
                   </TableCell>
                   <TableCell>{competition.level}</TableCell>
+                  <TableCell>
+                    <p className="text-sm">
+                      {competition.weapon
+                        ? weaponLabels[competition.weapon]
+                        : "Arme non renseignée"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {competition.gender
+                        ? genderLabels[competition.gender]
+                        : "Sexe non renseigné"}
+                      {" · "}
+                      {competition.category
+                        ? fencingCategoryLabels[competition.category]
+                        : "Catégorie non renseignée"}
+                    </p>
+                  </TableCell>
                   <TableCell>{competition._count.results}</TableCell>
                   {canManage ? (
                     <TableCell>
@@ -347,7 +487,7 @@ export function CompetitionManager({
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-slate-500"
-                    colSpan={canManage ? 5 : 4}
+                    colSpan={canManage ? 6 : 5}
                   >
                     Aucune compétition pour cette saison.
                   </TableCell>

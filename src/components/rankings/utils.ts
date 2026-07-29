@@ -4,6 +4,22 @@ export const genderLabels = {
   OTHER: "Autre",
 } as const;
 
+export const weaponLabels = {
+  EPEE: "Épée",
+  FLEURET: "Fleuret",
+  SABRE: "Sabre",
+} as const;
+
+export const fencingCategoryLabels = {
+  SENIOR: "Sénior",
+  U23: "U23",
+  M20: "M20 (moins de 20 ans)",
+  M17: "M17 (moins de 17 ans)",
+  M15: "M15",
+  M13: "M13",
+  VETERAN: "Vétéran",
+} as const;
+
 export const handednessLabels = {
   RIGHT_HANDED: "Droitier",
   LEFT_HANDED: "Gaucher",
@@ -43,6 +59,14 @@ export function formatDate(value: string) {
     dateStyle: "medium",
     timeZone: "UTC",
   }).format(new Date(value));
+}
+
+export function formatFencingCategory(value: string) {
+  return (
+    fencingCategoryLabels[
+      value as keyof typeof fencingCategoryLabels
+    ] ?? value
+  );
 }
 
 export function formatCharacteristic(

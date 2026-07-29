@@ -35,6 +35,9 @@ export async function GET(request: Request) {
           date: true,
           level: true,
           seasonId: true,
+          weapon: true,
+          gender: true,
+          category: true,
           season: { select: { label: true } },
           _count: { select: { results: true } },
         },
@@ -87,7 +90,12 @@ export async function POST(request: Request) {
             ...parsedBody.data,
             date,
           },
-          select: { id: true },
+          select: {
+            id: true,
+            weapon: true,
+            gender: true,
+            category: true,
+          },
         });
         return { status: "created" as const, competition };
       },

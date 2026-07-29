@@ -143,11 +143,17 @@ export const resultQuerySchema = z.object({
   competitionId: rankingIdSchema.optional(),
   athleteId: rankingIdSchema.optional(),
   seasonId: rankingIdSchema.optional(),
+  weapon: z.nativeEnum(Weapon).optional(),
+  gender: z.nativeEnum(Gender).optional(),
+  categoryExclude: z.nativeEnum(FencingCategory).optional(),
 });
 
 export const opponentStatsQuerySchema = z.object({
   athleteId: rankingIdSchema,
   seasonId: rankingIdSchema.optional(),
+  weapon: z.nativeEnum(Weapon).optional(),
+  gender: z.nativeEnum(Gender).optional(),
+  categoryExclude: z.nativeEnum(FencingCategory).optional(),
   groupBy: z
     .enum(["country", "handedness", "gripType", "playStyle"])
     .default("country"),
@@ -155,4 +161,10 @@ export const opponentStatsQuerySchema = z.object({
   handedness: z.nativeEnum(Handedness).optional(),
   gripType: z.nativeEnum(GripType).optional(),
   playStyle: z.nativeEnum(PlayStyle).optional(),
+});
+
+export const athleteHistoryQuerySchema = z.object({
+  weapon: z.nativeEnum(Weapon).optional(),
+  gender: z.nativeEnum(Gender).optional(),
+  categoryExclude: z.nativeEnum(FencingCategory).optional(),
 });

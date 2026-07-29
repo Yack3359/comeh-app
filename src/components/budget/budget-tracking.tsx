@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   BadgeEuro,
+  CalendarDays,
   Download,
   RefreshCw,
   TrendingDown,
@@ -29,7 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { TrackingData } from "./types";
-import { formatCurrency, requestJson } from "./utils";
+import { formatCurrency, formatDate, requestJson } from "./utils";
 
 type BudgetTrackingProps = {
   seasonId: string;
@@ -184,6 +185,45 @@ export function BudgetTracking({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <CalendarDays className="h-5 w-5 text-primary" />
+            Répartition par année civile
+          </CardTitle>
+          <CardDescription>
+            Dépenses affectées selon la date de chaque frais et les bornes des
+            années civiles liées à la saison.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {tracking.fiscalYears.map((fiscalYear) => (
+              <div
+                className="rounded-lg border bg-slate-50 p-5"
+                key={fiscalYear.id}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Dépenses {fiscalYear.label}
+                </p>
+                <p className="mt-2 text-2xl font-bold tabular-nums text-primary">
+                  {formatCurrency(fiscalYear.spent)}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Du {formatDate(fiscalYear.startDate)} au{" "}
+                  {formatDate(fiscalYear.endDate)}
+                </p>
+              </div>
+            ))}
+          </div>
+          {tracking.fiscalYears.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">
+              Aucune année civile n’est liée à cette saison.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="items-start gap-4 space-y-0 sm:flex-row sm:justify-between">

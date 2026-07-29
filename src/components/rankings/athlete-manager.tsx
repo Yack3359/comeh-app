@@ -37,9 +37,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { Athlete, Season } from "./types";
+import type { Athlete, FencingCategoryValue, Season } from "./types";
 import {
   athleteName,
+  fencingCategoryLabels,
+  formatFencingCategory,
   genderLabels,
   gripTypeLabels,
   handednessLabels,
@@ -93,7 +95,7 @@ export function AthleteManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [categoryAthleteId, setCategoryAthleteId] = useState("");
   const [categorySeasonId, setCategorySeasonId] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState<FencingCategoryValue | "">("");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -493,7 +495,8 @@ export function AthleteManager({
                     <div className="flex max-w-xs flex-wrap gap-1">
                       {athlete.categorySeasons.slice(0, 3).map((item) => (
                         <Badge key={item.seasonId} variant="outline">
-                          {item.season.label} · {item.category}
+                          {item.season.label} ·{" "}
+                          {formatFencingCategory(item.category)}
                         </Badge>
                       ))}
                       {athlete.categorySeasons.length === 0 ? (
@@ -587,17 +590,28 @@ export function AthleteManager({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="athlete-category">Catégorie</Label>
-                  <Input
-                    id="athlete-category"
-                    maxLength={80}
-                    onChange={(event) => setCategory(event.target.value)}
-                    placeholder="Ex. Épée fauteuil A"
-                    required
+                  <Select
+                    onValueChange={(value) =>
+                      setCategory(value as FencingCategoryValue)
+                    }
                     value={category}
-                  />
+                  >
+                    <SelectTrigger id="athlete-category">
+                      <SelectValue placeholder="Choisir une catégorie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(fencingCategoryLabels).map(
+                        ([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button
-                  disabled={isPending || !categorySeasonId}
+                  disabled={isPending || !categorySeasonId || !category}
                   type="submit"
                 >
                   <Save className="mr-2 h-4 w-4" />
@@ -617,7 +631,9 @@ export function AthleteManager({
                 {categoryAthlete.categorySeasons.map((item) => (
                   <TableRow key={item.seasonId}>
                     <TableCell>{item.season.label}</TableCell>
-                    <TableCell className="font-medium">{item.category}</TableCell>
+                    <TableCell className="font-medium">
+                      {formatFencingCategory(item.category)}
+                    </TableCell>
                     {canManage ? (
                       <TableCell>
                         <Button

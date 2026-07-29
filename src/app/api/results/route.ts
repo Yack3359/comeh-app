@@ -33,9 +33,17 @@ export async function GET(request: Request) {
         where: {
           competitionId: parsedQuery.data.competitionId,
           athleteId: parsedQuery.data.athleteId,
-          competition: parsedQuery.data.seasonId
-            ? { seasonId: parsedQuery.data.seasonId }
-            : undefined,
+          competition: {
+            seasonId: parsedQuery.data.seasonId,
+            weapon: parsedQuery.data.weapon,
+            gender: parsedQuery.data.gender,
+            OR: parsedQuery.data.categoryExclude
+              ? [
+                  { category: null },
+                  { category: { not: parsedQuery.data.categoryExclude } },
+                ]
+              : undefined,
+          },
         },
         orderBy: [
           { competition: { date: "desc" } },
@@ -57,6 +65,9 @@ export async function GET(request: Request) {
               name: true,
               date: true,
               seasonId: true,
+              weapon: true,
+              gender: true,
+              category: true,
               season: { select: { label: true } },
             },
           },

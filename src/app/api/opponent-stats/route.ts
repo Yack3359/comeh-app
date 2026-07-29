@@ -18,13 +18,31 @@ export async function GET(request: Request) {
 
   try {
     const result = await runAsAuthenticatedUser(async () => {
-      const { athleteId, seasonId, groupBy, ...filters } = parsedQuery.data;
+      const {
+        athleteId,
+        seasonId,
+        weapon,
+        gender,
+        categoryExclude,
+        groupBy,
+        ...filters
+      } = parsedQuery.data;
       const bouts = await prisma.result.findMany({
         where: {
           athleteId,
           opponentAthleteId: { not: null },
           won: { not: null },
-          competition: seasonId ? { seasonId } : undefined,
+          competition: {
+            seasonId,
+            weapon,
+            gender,
+            OR: categoryExclude
+              ? [
+                  { category: null },
+                  { category: { not: categoryExclude } },
+                ]
+              : undefined,
+          },
           opponentAthlete: {
             country: filters.country,
             handedness: filters.handedness,

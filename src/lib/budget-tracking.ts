@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 export async function getBudgetTracking(seasonId: string) {
-  const [categories, expenseTotals] = await Promise.all([
+  const [categories, expenseTotals, fiscalYears, expenses] = await Promise.all([
     prisma.budgetCategory.findMany({
       where: { seasonId },
       orderBy: { name: "asc" },
@@ -18,6 +18,23 @@ export async function getBudgetTracking(seasonId: string) {
       by: ["categoryId"],
       where: { seasonId },
       _sum: { amount: true },
+    }),
+    prisma.fiscalYear.findMany({
+      where: { seasons: { some: { id: seasonId } } },
+      orderBy: { startDate: "asc" },
+      select: {
+        id: true,
+        label: true,
+        startDate: true,
+        endDate: true,
+      },
+    }),
+    prisma.expense.findMany({
+      where: { seasonId },
+      select: {
+        amount: true,
+        date: true,
+      },
     }),
   ]);
 
@@ -43,6 +60,17 @@ export async function getBudgetTracking(seasonId: string) {
 
   const planned = rows.reduce((total, row) => total + row.planned, 0);
   const spent = rows.reduce((total, row) => total + row.spent, 0);
+  const spentByFiscalYear = fiscalYears.map((fiscalYear) => ({
+    ...fiscalYear,
+    spent: expenses.reduce(
+      (total, expense) =>
+        expense.date >= fiscalYear.startDate &&
+        expense.date <= fiscalYear.endDate
+          ? total + Number(expense.amount)
+          : total,
+      0,
+    ),
+  }));
 
   return {
     planned,
@@ -50,5 +78,6 @@ export async function getBudgetTracking(seasonId: string) {
     remaining: planned - spent,
     percentage: planned > 0 ? (spent / planned) * 100 : spent > 0 ? 100 : 0,
     categories: rows,
+    fiscalYears: spentByFiscalYear,
   };
 }

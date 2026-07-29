@@ -73,7 +73,18 @@ export async function GET(request: Request) {
       csvNumberCell(category.remaining),
       csvNumberCell(category.percentage),
     ]);
-    const csv = `\uFEFF${[headerRow, ...dataRows]
+    const fiscalYearHeader = ["Année civile", "Dépensé"].map(csvTextCell);
+    const fiscalYearRows = result.tracking.fiscalYears.map((fiscalYear) => [
+      csvTextCell(fiscalYear.label),
+      csvNumberCell(fiscalYear.spent),
+    ]);
+    const csv = `\uFEFF${[
+      headerRow,
+      ...dataRows,
+      [],
+      fiscalYearHeader,
+      ...fiscalYearRows,
+    ]
       .map((row) => row.join(";"))
       .join("\r\n")}\r\n`;
     const safeSeasonLabel = result.season.label.replace(

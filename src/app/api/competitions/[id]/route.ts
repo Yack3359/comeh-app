@@ -66,7 +66,12 @@ export async function PATCH(request: Request, context: RouteContext) {
             ...parsedBody.data,
             date,
           },
-          select: { id: true },
+          select: {
+            id: true,
+            weapon: true,
+            gender: true,
+            category: true,
+          },
         });
         return { status: "updated" as const, competition };
       },

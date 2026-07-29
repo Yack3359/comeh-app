@@ -28,8 +28,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { Athlete, AthleteHistoryData } from "./types";
-import { athleteName, formatDate, requestJson } from "./utils";
+import {
+  appendCompetitionFilters,
+  CompetitionFilterPanel,
+  defaultCompetitionFilters,
+} from "./competition-filters";
+import type {
+  Athlete,
+  AthleteHistoryData,
+  CompetitionFilters,
+} from "./types";
+import {
+  athleteName,
+  formatDate,
+  formatFencingCategory,
+  requestJson,
+} from "./utils";
 
 type AthleteHistoryProps = {
   version: number;
@@ -38,6 +52,8 @@ type AthleteHistoryProps = {
 export function AthleteHistory({ version }: AthleteHistoryProps) {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [athleteId, setAthleteId] = useState("");
+  const [competitionFilters, setCompetitionFilters] =
+    useState<CompetitionFilters>(defaultCompetitionFilters);
   const [history, setHistory] = useState<AthleteHistoryData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,12 +75,16 @@ export function AthleteHistory({ version }: AthleteHistoryProps) {
       setHistory(null);
       return;
     }
+    const params = appendCompetitionFilters(
+      new URLSearchParams(),
+      competitionFilters,
+    );
     setHistory(
       await requestJson<AthleteHistoryData>(
-        `/api/athletes/${athleteId}/history`,
+        `/api/athletes/${athleteId}/history?${params}`,
       ),
     );
-  }, [athleteId]);
+  }, [athleteId, competitionFilters]);
 
   useEffect(() => {
     setError(null);
@@ -85,7 +105,12 @@ export function AthleteHistory({ version }: AthleteHistoryProps) {
             après saison.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <CompetitionFilterPanel
+            filters={competitionFilters}
+            idPrefix="history-filter"
+            onChange={setCompetitionFilters}
+          />
           <div className="max-w-md space-y-2">
             <Label htmlFor="history-athlete">Athlète</Label>
             <Select onValueChange={setAthleteId} value={athleteId}>
@@ -130,7 +155,9 @@ export function AthleteHistory({ version }: AthleteHistoryProps) {
                 <div className="flex items-center gap-2">
                   {index === 0 ? <Badge>Saison la plus récente</Badge> : null}
                   <Badge variant="outline">
-                    {season.category || "Catégorie non renseignée"}
+                    {season.category
+                      ? formatFencingCategory(season.category)
+                      : "Catégorie non renseignée"}
                   </Badge>
                 </div>
               </div>

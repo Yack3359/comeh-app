@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 
 import { runAsAuthenticatedUser } from "@/lib/api-auth";
 import { apiErrorResponse, invalidDataResponse } from "@/lib/api-response";
-import { entityParamsSchema } from "@/lib/rankings-validations";
+import {
+  athleteHistoryQuerySchema,
+  entityParamsSchema,
+} from "@/lib/rankings-validations";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -11,11 +14,17 @@ type RouteContext = {
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const parsedParams = entityParamsSchema.safeParse(context.params);
+  const parsedQuery = athleteHistoryQuerySchema.safeParse(
+    Object.fromEntries(new URL(request.url).searchParams),
+  );
 
   if (!parsedParams.success) {
     return invalidDataResponse(parsedParams.error);
+  }
+  if (!parsedQuery.success) {
+    return invalidDataResponse(parsedQuery.error);
   }
 
   try {
@@ -44,6 +53,20 @@ export async function GET(_request: Request, context: RouteContext) {
             where: {
               opponentAthleteId: null,
               rank: { not: null },
+              competition: {
+                weapon: parsedQuery.data.weapon,
+                gender: parsedQuery.data.gender,
+                OR: parsedQuery.data.categoryExclude
+                  ? [
+                      { category: null },
+                      {
+                        category: {
+                          not: parsedQuery.data.categoryExclude,
+                        },
+                      },
+                    ]
+                  : undefined,
+              },
             },
             orderBy: { competition: { date: "desc" } },
             select: {

@@ -33,9 +33,16 @@ import {
 import type {
   Athlete,
   Competition,
+  CompetitionFilters,
   RankingResult,
   Team,
 } from "./types";
+import {
+  appendCompetitionFilters,
+  competitionMatchesFilters,
+  CompetitionFilterPanel,
+  defaultCompetitionFilters,
+} from "./competition-filters";
 import { athleteName, formatDate, requestJson } from "./utils";
 
 type ResultManagerProps = {
@@ -81,6 +88,9 @@ export function ResultManager({
   const [teams, setTeams] = useState<Team[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [results, setResults] = useState<RankingResult[]>([]);
+  const [filters, setFilters] = useState<CompetitionFilters>(
+    defaultCompetitionFilters,
+  );
   const [form, setForm] = useState<ResultForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -95,6 +105,10 @@ export function ResultManager({
       return;
     }
 
+    const resultParams = appendCompetitionFilters(
+      new URLSearchParams({ seasonId }),
+      filters,
+    );
     const [athleteData, teamData, competitionData, resultData] =
       await Promise.all([
         requestJson<Athlete[]>("/api/athletes"),
@@ -103,10 +117,13 @@ export function ResultManager({
           `/api/competitions?seasonId=${encodeURIComponent(seasonId)}`,
         ),
         requestJson<RankingResult[]>(
-          `/api/results?seasonId=${encodeURIComponent(seasonId)}`,
+          `/api/results?${resultParams}`,
         ),
       ]);
 
+    const eligibleCompetitions = competitionData.filter((competition) =>
+      competitionMatchesFilters(competition, filters),
+    );
     setAthletes(athleteData);
     setTeams(teamData);
     setCompetitions(competitionData);
@@ -114,9 +131,9 @@ export function ResultManager({
     setForm((current) => ({
       ...current,
       competitionId:
-        competitionData.some((item) => item.id === current.competitionId)
+        eligibleCompetitions.some((item) => item.id === current.competitionId)
           ? current.competitionId
-          : (competitionData[0]?.id ?? ""),
+          : (eligibleCompetitions[0]?.id ?? ""),
       athleteId:
         athleteData.some((item) => item.id === current.athleteId)
           ? current.athleteId
@@ -126,7 +143,7 @@ export function ResultManager({
           ? current.teamId
           : (teamData[0]?.id ?? ""),
     }));
-  }, [seasonId]);
+  }, [filters, seasonId]);
 
   useEffect(() => {
     setError(null);
@@ -162,12 +179,19 @@ export function ResultManager({
     () => athletes.filter((athlete) => athlete.id !== form.athleteId),
     [athletes, form.athleteId],
   );
+  const visibleCompetitions = useMemo(
+    () =>
+      competitions.filter((competition) =>
+        competitionMatchesFilters(competition, filters),
+      ),
+    [competitions, filters],
+  );
 
   function resetForm() {
     setEditingId(null);
     setForm((current) => ({
       ...emptyForm,
-      competitionId: competitions[0]?.id ?? "",
+      competitionId: visibleCompetitions[0]?.id ?? "",
       athleteId: athletes[0]?.id ?? "",
       opponentAthleteId:
         athletes.find((athlete) => athlete.id !== athletes[0]?.id)?.id ?? "",
@@ -263,6 +287,11 @@ export function ResultManager({
 
   return (
     <div className="space-y-5">
+      <CompetitionFilterPanel
+        filters={filters}
+        idPrefix="results-filter"
+        onChange={setFilters}
+      />
       {canManage ? (
         <Card>
           <CardHeader>
@@ -312,7 +341,7 @@ export function ResultManager({
                       <SelectValue placeholder="Choisir une compétition" />
                     </SelectTrigger>
                     <SelectContent>
-                      {competitions.map((competition) => (
+                      {visibleCompetitions.map((competition) => (
                         <SelectItem key={competition.id} value={competition.id}>
                           {competition.name}
                         </SelectItem>
@@ -496,9 +525,10 @@ export function ResultManager({
                 </div>
               </div>
 
-              {competitions.length === 0 ? (
+              {visibleCompetitions.length === 0 ? (
                 <p className="text-sm text-amber-700">
-                  Créez d’abord une compétition pour cette saison.
+                  Aucune compétition ne correspond au périmètre sélectionné.
+                  Modifiez les filtres ou créez une compétition adaptée.
                 </p>
               ) : null}
               <div className="flex justify-end gap-2">

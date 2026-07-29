@@ -28,7 +28,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { Athlete, OpponentStatsData, Season } from "./types";
+import {
+  appendCompetitionFilters,
+  CompetitionFilterPanel,
+  defaultCompetitionFilters,
+} from "./competition-filters";
+import type {
+  Athlete,
+  CompetitionFilters,
+  OpponentStatsData,
+  Season,
+} from "./types";
 import {
   athleteName,
   formatCharacteristic,
@@ -51,6 +61,8 @@ export function OpponentStats({ seasons, version }: OpponentStatsProps) {
   const [handedness, setHandedness] = useState("all");
   const [gripType, setGripType] = useState("all");
   const [playStyle, setPlayStyle] = useState("all");
+  const [competitionFilters, setCompetitionFilters] =
+    useState<CompetitionFilters>(defaultCompetitionFilters);
   const [stats, setStats] = useState<OpponentStatsData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,8 +98,18 @@ export function OpponentStats({ seasons, version }: OpponentStatsProps) {
     if (handedness !== "all") params.set("handedness", handedness);
     if (gripType !== "all") params.set("gripType", gripType);
     if (playStyle !== "all") params.set("playStyle", playStyle);
+    appendCompetitionFilters(params, competitionFilters);
     setStats(await requestJson<OpponentStatsData>(`/api/opponent-stats?${params}`));
-  }, [athleteId, country, gripType, groupBy, handedness, playStyle, seasonId]);
+  }, [
+    athleteId,
+    competitionFilters,
+    country,
+    gripType,
+    groupBy,
+    handedness,
+    playStyle,
+    seasonId,
+  ]);
 
   useEffect(() => {
     setError(null);
@@ -108,7 +130,12 @@ export function OpponentStats({ seasons, version }: OpponentStatsProps) {
             de force et les axes de travail.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <CompetitionFilterPanel
+            filters={competitionFilters}
+            idPrefix="stats-filter"
+            onChange={setCompetitionFilters}
+          />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2 lg:col-span-2">
               <Label htmlFor="stats-athlete">Athlète analysé</Label>
