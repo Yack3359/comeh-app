@@ -26,6 +26,7 @@ export type CompetitionFilters = {
 export type AthleteCategory = {
   seasonId: string;
   category: FencingCategoryValue;
+  rankingPoints: number | null;
   season: {
     label: string;
     startDate: string;
@@ -114,6 +115,20 @@ export type OpponentStatsData = {
     losses: number;
     winRate: number;
   }>;
+};
+
+export type SelectionHelperAthlete = {
+  athleteId: string;
+  firstName: string;
+  lastName: string;
+  club: string | null;
+  country: string;
+  rankingPoints: number | null;
+  competitionCount: number;
+  bestRank: number | null;
+  boutCount: number;
+  wins: number;
+  winRate: number;
 };
 
 export type AthleteHistoryData = {

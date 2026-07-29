@@ -96,6 +96,7 @@ export function AthleteManager({
   const [categoryAthleteId, setCategoryAthleteId] = useState("");
   const [categorySeasonId, setCategorySeasonId] = useState("");
   const [category, setCategory] = useState<FencingCategoryValue | "">("");
+  const [rankingPoints, setRankingPoints] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -127,6 +128,11 @@ export function AthleteManager({
       (item) => item.seasonId === categorySeasonId,
     );
     setCategory(existing?.category ?? "");
+    setRankingPoints(
+      existing?.rankingPoints === null || existing?.rankingPoints === undefined
+        ? ""
+        : String(existing.rankingPoints),
+    );
   }, [categoryAthlete, categorySeasonId]);
 
   function resetForm() {
@@ -214,6 +220,7 @@ export function AthleteManager({
         body: JSON.stringify({
           seasonId: categorySeasonId,
           category,
+          rankingPoints: rankingPoints === "" ? null : Number(rankingPoints),
         }),
       });
       setMessage("Catégorie de saison enregistrée.");
@@ -567,7 +574,7 @@ export function AthleteManager({
           <CardContent className="space-y-5">
             {canManage ? (
               <form
-                className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]"
+                className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]"
                 onSubmit={saveCategory}
               >
                 <div className="space-y-2">
@@ -610,6 +617,22 @@ export function AthleteManager({
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="athlete-ranking-points">
+                    Points au classement
+                  </Label>
+                  <Input
+                    id="athlete-ranking-points"
+                    inputMode="decimal"
+                    max="99999999.99"
+                    min="0.01"
+                    onChange={(event) => setRankingPoints(event.target.value)}
+                    placeholder="Optionnel"
+                    step="0.01"
+                    type="number"
+                    value={rankingPoints}
+                  />
+                </div>
                 <Button
                   disabled={isPending || !categorySeasonId || !category}
                   type="submit"
@@ -624,6 +647,7 @@ export function AthleteManager({
                 <TableRow>
                   <TableHead>Saison</TableHead>
                   <TableHead>Catégorie</TableHead>
+                  <TableHead>Points au classement</TableHead>
                   {canManage ? <TableHead className="w-16" /> : null}
                 </TableRow>
               </TableHeader>
@@ -633,6 +657,13 @@ export function AthleteManager({
                     <TableCell>{item.season.label}</TableCell>
                     <TableCell className="font-medium">
                       {formatFencingCategory(item.category)}
+                    </TableCell>
+                    <TableCell>
+                      {item.rankingPoints === null
+                        ? "Non renseignés"
+                        : new Intl.NumberFormat("fr-FR", {
+                            maximumFractionDigits: 2,
+                          }).format(item.rankingPoints)}
                     </TableCell>
                     {canManage ? (
                       <TableCell>
@@ -653,7 +684,7 @@ export function AthleteManager({
                   <TableRow>
                     <TableCell
                       className="py-8 text-center text-slate-500"
-                      colSpan={canManage ? 3 : 2}
+                      colSpan={canManage ? 4 : 3}
                     >
                       Aucune catégorie enregistrée.
                     </TableCell>

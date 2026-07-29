@@ -1,6 +1,12 @@
 "use client";
 
-import { CalendarRange, Eye, Medal, Swords } from "lucide-react";
+import {
+  CalendarRange,
+  Eye,
+  Medal,
+  Swords,
+  UsersRound,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +29,7 @@ import { AthleteManager } from "./athlete-manager";
 import { CompetitionManager } from "./competition-manager";
 import { OpponentStats } from "./opponent-stats";
 import { ResultManager } from "./result-manager";
+import { SelectionHelper } from "./selection-helper";
 import { TeamManager } from "./team-manager";
 import type { Season } from "./types";
 import { formatDate, requestJson } from "./utils";
@@ -132,7 +139,7 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
         </div>
       ) : (
         <Tabs defaultValue="athletes">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-3 xl:grid-cols-6">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4 xl:grid-cols-7">
             <TabsTrigger value="athletes">Athlètes</TabsTrigger>
             <TabsTrigger value="teams">Équipes</TabsTrigger>
             <TabsTrigger value="competitions">Compétitions</TabsTrigger>
@@ -144,6 +151,10 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
             <TabsTrigger value="history">
               <Medal className="mr-1.5 h-4 w-4" />
               Historique
+            </TabsTrigger>
+            <TabsTrigger value="selection">
+              <UsersRound className="mr-1.5 h-4 w-4" />
+              Aide à la sélection
             </TabsTrigger>
           </TabsList>
 
@@ -185,6 +196,9 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
           </TabsContent>
           <TabsContent className="mt-5" value="history">
             <AthleteHistory version={dataVersion} />
+          </TabsContent>
+          <TabsContent className="mt-5" value="selection">
+            <SelectionHelper seasonId={seasonId} version={dataVersion} />
           </TabsContent>
         </Tabs>
       )}

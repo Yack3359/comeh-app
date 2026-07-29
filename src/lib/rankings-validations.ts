@@ -62,6 +62,21 @@ export const athleteQuerySchema = z.object({
 export const athleteCategorySchema = z.object({
   seasonId: rankingIdSchema,
   category: z.nativeEnum(FencingCategory),
+  rankingPoints: z
+    .number()
+    .finite()
+    .positive("Les points doivent être supérieurs à zéro")
+    .multipleOf(0.01, "Deux décimales au maximum")
+    .max(99_999_999.99, "Le nombre de points est trop élevé")
+    .nullable()
+    .optional(),
+});
+
+export const selectionHelperQuerySchema = z.object({
+  seasonId: rankingIdSchema,
+  category: z.nativeEnum(FencingCategory),
+  weapon: z.nativeEnum(Weapon),
+  gender: z.nativeEnum(Gender),
 });
 
 export const teamCreateSchema = z.object({

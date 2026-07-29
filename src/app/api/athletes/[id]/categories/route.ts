@@ -54,16 +54,21 @@ export async function PUT(request: Request, context: RouteContext) {
               seasonId: season.id,
             },
           },
-          update: { category: parsedBody.data.category },
+          update: {
+            category: parsedBody.data.category,
+            rankingPoints: parsedBody.data.rankingPoints,
+          },
           create: {
             athleteId: athlete.id,
             seasonId: season.id,
             category: parsedBody.data.category,
+            rankingPoints: parsedBody.data.rankingPoints,
           },
           select: {
             athleteId: true,
             seasonId: true,
             category: true,
+            rankingPoints: true,
           },
         });
 
@@ -82,7 +87,13 @@ export async function PUT(request: Request, context: RouteContext) {
       );
     }
 
-    return NextResponse.json(result.category);
+    return NextResponse.json({
+      ...result.category,
+      rankingPoints:
+        result.category.rankingPoints === null
+          ? null
+          : Number(result.category.rankingPoints),
+    });
   } catch (error) {
     return apiErrorResponse(error, "Impossible d’enregistrer la catégorie");
   }

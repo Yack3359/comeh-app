@@ -65,6 +65,7 @@ export async function GET(request: Request) {
             select: {
               seasonId: true,
               category: true,
+              rankingPoints: true,
               season: {
                 select: {
                   label: true,
@@ -87,9 +88,19 @@ export async function GET(request: Request) {
       return result;
     }
 
-    return NextResponse.json(result, {
-      headers: { "Cache-Control": "no-store" },
-    });
+    return NextResponse.json(
+      result.map((athlete) => ({
+        ...athlete,
+        categorySeasons: athlete.categorySeasons.map((item) => ({
+          ...item,
+          rankingPoints:
+            item.rankingPoints === null ? null : Number(item.rankingPoints),
+        })),
+      })),
+      {
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
   } catch (error) {
     return apiErrorResponse(error, "Impossible de charger les athlètes");
   }
