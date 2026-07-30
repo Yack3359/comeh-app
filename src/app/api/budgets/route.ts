@@ -86,22 +86,33 @@ export async function PUT(request: Request) {
         }
 
         for (const budget of parsedBody.data.budgets) {
-          await prisma.budget.upsert({
+          // Prisma ne gère pas les clés composées d'upsert avec un champ
+          // nullable (fencingCategory) : on fait le lookup + create/update
+          // à la main plutôt que via le raccourci `upsert`.
+          const existing = await prisma.budget.findFirst({
             where: {
-              seasonId_categoryId: {
-                seasonId: parsedBody.data.seasonId,
-                categoryId: budget.categoryId,
-              },
-            },
-            update: {
-              plannedAmount: budget.plannedAmount,
-            },
-            create: {
               seasonId: parsedBody.data.seasonId,
               categoryId: budget.categoryId,
-              plannedAmount: budget.plannedAmount,
+              fencingCategory: null,
             },
+            select: { id: true },
           });
+
+          if (existing) {
+            await prisma.budget.update({
+              where: { id: existing.id },
+              data: { plannedAmount: budget.plannedAmount },
+            });
+          } else {
+            await prisma.budget.create({
+              data: {
+                seasonId: parsedBody.data.seasonId,
+                categoryId: budget.categoryId,
+                fencingCategory: null,
+                plannedAmount: budget.plannedAmount,
+              },
+            });
+          }
         }
 
         return { status: "updated" as const };
