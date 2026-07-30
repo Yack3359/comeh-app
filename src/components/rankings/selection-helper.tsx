@@ -350,6 +350,11 @@ export function SelectionHelper({
                         {athlete.club || "Club non renseigné"} ·{" "}
                         {athlete.country}
                       </p>
+                      {athlete.selectionCriteria ? (
+                        <p className="mt-1 text-xs font-medium text-slate-700">
+                          {athlete.selectionCriteria}
+                        </p>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {athlete.rankingPoints === null

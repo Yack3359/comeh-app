@@ -51,6 +51,7 @@ export const athleteCreateSchema = z.object({
   gripType: z.nativeEnum(GripType).nullable().optional(),
   playStyle: z.nativeEnum(PlayStyle).nullable().optional(),
   club: optionalText(120),
+  pole: optionalText(120),
 });
 
 export const athleteUpdateSchema = athleteCreateSchema;
@@ -70,6 +71,7 @@ export const athleteCategorySchema = z.object({
     .max(99_999_999.99, "Le nombre de points est trop élevé")
     .nullable()
     .optional(),
+  selectionCriteria: optionalText(500),
 });
 
 export const selectionHelperQuerySchema = z.object({

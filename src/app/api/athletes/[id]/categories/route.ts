@@ -57,18 +57,21 @@ export async function PUT(request: Request, context: RouteContext) {
           update: {
             category: parsedBody.data.category,
             rankingPoints: parsedBody.data.rankingPoints,
+            selectionCriteria: parsedBody.data.selectionCriteria,
           },
           create: {
             athleteId: athlete.id,
             seasonId: season.id,
             category: parsedBody.data.category,
             rankingPoints: parsedBody.data.rankingPoints,
+            selectionCriteria: parsedBody.data.selectionCriteria,
           },
           select: {
             athleteId: true,
             seasonId: true,
             category: true,
             rankingPoints: true,
+            selectionCriteria: true,
           },
         });
 

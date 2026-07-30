@@ -22,6 +22,7 @@ export type AthleteCategory = {
   seasonId: string;
   category: FencingCategoryValue;
   rankingPoints: number | null;
+  selectionCriteria: string | null;
   season: {
     label: string;
     startDate: string;
@@ -44,6 +45,7 @@ export type Athlete = {
     | "OTHER"
     | null;
   club: string | null;
+  pole: string | null;
   categorySeasons: AthleteCategory[];
   _count: {
     results: number;
@@ -119,6 +121,7 @@ export type SelectionHelperAthlete = {
   club: string | null;
   country: string;
   rankingPoints: number | null;
+  selectionCriteria: string | null;
   competitionCount: number;
   bestRank: number | null;
   boutCount: number;

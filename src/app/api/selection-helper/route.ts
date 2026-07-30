@@ -28,6 +28,7 @@ export async function GET(request: Request) {
           },
           select: {
             rankingPoints: true,
+            selectionCriteria: true,
             athlete: {
               select: {
                 id: true,
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
         });
 
       return categoryAthletes
-        .map(({ athlete, rankingPoints }) => {
+        .map(({ athlete, rankingPoints, selectionCriteria }) => {
           const competitions = new Set(
             athlete.results.map((item) => item.competitionId),
           );
@@ -77,6 +78,7 @@ export async function GET(request: Request) {
             country: athlete.country,
             rankingPoints:
               rankingPoints === null ? null : Number(rankingPoints),
+            selectionCriteria,
             competitionCount: competitions.size,
             bestRank: ranks.length > 0 ? Math.min(...ranks) : null,
             boutCount: bouts.length,

@@ -71,6 +71,7 @@ type AthleteForm = {
     | "OTHER"
     | "NONE";
   club: string;
+  pole: string;
 };
 
 const emptyForm: AthleteForm = {
@@ -82,6 +83,7 @@ const emptyForm: AthleteForm = {
   gripType: "CROSS",
   playStyle: "OFFENSIVE",
   club: "",
+  pole: "",
 };
 
 export function AthleteManager({
@@ -97,6 +99,7 @@ export function AthleteManager({
   const [categorySeasonId, setCategorySeasonId] = useState("");
   const [category, setCategory] = useState<FencingCategoryValue | "">("");
   const [rankingPoints, setRankingPoints] = useState("");
+  const [selectionCriteria, setSelectionCriteria] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -133,6 +136,7 @@ export function AthleteManager({
         ? ""
         : String(existing.rankingPoints),
     );
+    setSelectionCriteria(existing?.selectionCriteria ?? "");
   }, [categoryAthlete, categorySeasonId]);
 
   function resetForm() {
@@ -155,6 +159,7 @@ export function AthleteManager({
           gripType: form.gripType === "NONE" ? null : form.gripType,
           playStyle: form.playStyle === "NONE" ? null : form.playStyle,
           club: form.club || null,
+          pole: form.pole || null,
         }),
       });
       setMessage(editingId ? "Profil mis à jour." : "Athlète créé.");
@@ -183,6 +188,7 @@ export function AthleteManager({
       gripType: athlete.gripType ?? "NONE",
       playStyle: athlete.playStyle ?? "NONE",
       club: athlete.club ?? "",
+      pole: athlete.pole ?? "",
     });
   }
 
@@ -221,6 +227,7 @@ export function AthleteManager({
           seasonId: categorySeasonId,
           category,
           rankingPoints: rankingPoints === "" ? null : Number(rankingPoints),
+          selectionCriteria: selectionCriteria || null,
         }),
       });
       setMessage("Catégorie de saison enregistrée.");
@@ -425,6 +432,21 @@ export function AthleteManager({
                     value={form.club}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="athlete-pole">Pôle</Label>
+                  <Input
+                    id="athlete-pole"
+                    maxLength={120}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        pole: event.target.value,
+                      }))
+                    }
+                    placeholder="PFR Reims, CFF Lyon…"
+                    value={form.pole}
+                  />
+                </div>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
                 {editingId ? (
@@ -490,7 +512,9 @@ export function AthleteManager({
                       {athleteName(athlete)}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {athlete.club || "Club non renseigné"} · {athlete.country}
+                      {athlete.club || "Club non renseigné"}
+                      {athlete.pole ? ` · ${athlete.pole}` : ""} ·{" "}
+                      {athlete.country}
                     </p>
                   </TableCell>
                   <TableCell className="text-sm">
@@ -574,7 +598,7 @@ export function AthleteManager({
           <CardContent className="space-y-5">
             {canManage ? (
               <form
-                className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]"
+                className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.5fr_auto]"
                 onSubmit={saveCategory}
               >
                 <div className="space-y-2">
@@ -633,6 +657,20 @@ export function AthleteManager({
                     value={rankingPoints}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="athlete-selection-criteria">
+                    Critères de sélection
+                  </Label>
+                  <Input
+                    id="athlete-selection-criteria"
+                    maxLength={500}
+                    onChange={(event) =>
+                      setSelectionCriteria(event.target.value)
+                    }
+                    placeholder="Ex. 8 premiers du classement sélectif"
+                    value={selectionCriteria}
+                  />
+                </div>
                 <Button
                   disabled={isPending || !categorySeasonId || !category}
                   type="submit"
@@ -648,6 +686,7 @@ export function AthleteManager({
                   <TableHead>Saison</TableHead>
                   <TableHead>Catégorie</TableHead>
                   <TableHead>Points au classement</TableHead>
+                  <TableHead>Critères de sélection</TableHead>
                   {canManage ? <TableHead className="w-16" /> : null}
                 </TableRow>
               </TableHeader>
@@ -665,6 +704,7 @@ export function AthleteManager({
                             maximumFractionDigits: 2,
                           }).format(item.rankingPoints)}
                     </TableCell>
+                    <TableCell>{item.selectionCriteria || "—"}</TableCell>
                     {canManage ? (
                       <TableCell>
                         <Button
@@ -684,7 +724,7 @@ export function AthleteManager({
                   <TableRow>
                     <TableCell
                       className="py-8 text-center text-slate-500"
-                      colSpan={canManage ? 4 : 3}
+                      colSpan={canManage ? 5 : 4}
                     >
                       Aucune catégorie enregistrée.
                     </TableCell>

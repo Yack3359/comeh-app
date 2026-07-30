@@ -46,6 +46,12 @@ export async function GET(request: Request) {
                     mode: "insensitive",
                   },
                 },
+                {
+                  pole: {
+                    contains: parsedQuery.data.search,
+                    mode: "insensitive",
+                  },
+                },
               ],
             }
           : undefined,
@@ -60,12 +66,14 @@ export async function GET(request: Request) {
           gripType: true,
           playStyle: true,
           club: true,
+          pole: true,
           categorySeasons: {
             orderBy: { season: { startDate: "desc" } },
             select: {
               seasonId: true,
               category: true,
               rankingPoints: true,
+              selectionCriteria: true,
               season: {
                 select: {
                   label: true,
