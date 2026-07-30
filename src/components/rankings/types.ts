@@ -1,3 +1,7 @@
+import type { FencingCategoryValue } from "@/components/fencing-category";
+
+export type { FencingCategoryValue };
+
 export type Season = {
   id: string;
   label: string;
@@ -7,15 +11,6 @@ export type Season = {
 
 export type GenderValue = "FEMALE" | "MALE" | "OTHER";
 export type WeaponValue = "EPEE" | "FLEURET" | "SABRE";
-export type FencingCategoryValue =
-  | "SENIOR"
-  | "U23"
-  | "M20"
-  | "M17"
-  | "M15"
-  | "M13"
-  | "VETERAN";
-
 export type CompetitionFilters = {
   enabled: boolean;
   weapon: WeaponValue | "all";

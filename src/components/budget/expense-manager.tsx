@@ -3,6 +3,12 @@
 import { PlusCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  fencingCategories,
+  fencingCategoryLabels,
+  fencingCategoryStyles,
+  type FencingCategoryValue,
+} from "@/components/fencing-category";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,6 +88,9 @@ export function ExpenseManager({
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categoryId, setCategoryId] = useState("");
+  const [fencingCategory, setFencingCategory] = useState<
+    FencingCategoryValue | "NONE"
+  >("NONE");
   const [type, setType] =
     useState<keyof typeof expenseTypeLabels>("ACCOMMODATION");
   const [amount, setAmount] = useState("");
@@ -89,6 +98,7 @@ export function ExpenseManager({
   const [description, setDescription] = useState("");
   const [relatedEvent, setRelatedEvent] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [fencingCategoryFilter, setFencingCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,15 +136,19 @@ export function ExpenseManager({
     if (categoryFilter !== "all") {
       params.set("categoryId", categoryFilter);
     }
+    if (fencingCategoryFilter !== "all") {
+      params.set("fencingCategory", fencingCategoryFilter);
+    }
     if (typeFilter !== "all") {
       params.set("type", typeFilter);
     }
 
     setExpenses(await requestJson<Expense[]>(`/api/expenses?${params}`));
-  }, [categoryFilter, seasonId, typeFilter]);
+  }, [categoryFilter, fencingCategoryFilter, seasonId, typeFilter]);
 
   useEffect(() => {
     setCategoryFilter("all");
+    setFencingCategoryFilter("all");
     setDate(initialDate(currentSeason));
   }, [currentSeason]);
 
@@ -168,6 +182,8 @@ export function ExpenseManager({
         body: JSON.stringify({
           seasonId,
           categoryId,
+          fencingCategory:
+            fencingCategory === "NONE" ? null : fencingCategory,
           type,
           amount,
           date,
@@ -205,7 +221,7 @@ export function ExpenseManager({
           </CardHeader>
           <CardContent>
             <form className="space-y-5" onSubmit={createExpense}>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="space-y-2">
                   <Label htmlFor="expense-season">Saison</Label>
                   <SeasonSelect
@@ -216,7 +232,7 @@ export function ExpenseManager({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expense-category">Catégorie</Label>
+                  <Label htmlFor="expense-category">Catégorie de dépense</Label>
                   <Select onValueChange={setCategoryId} value={categoryId}>
                     <SelectTrigger id="expense-category">
                       <SelectValue placeholder="Choisir une catégorie" />
@@ -225,6 +241,31 @@ export function ExpenseManager({
                       {categories.map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expense-fencing-category">
+                    Catégorie de tireur
+                  </Label>
+                  <Select
+                    onValueChange={(value) =>
+                      setFencingCategory(
+                        value as FencingCategoryValue | "NONE",
+                      )
+                    }
+                    value={fencingCategory}
+                  >
+                    <SelectTrigger id="expense-fencing-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Non spécifiée</SelectItem>
+                      {fencingCategories.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {fencingCategoryLabels[value]}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -346,13 +387,15 @@ export function ExpenseManager({
           <CardTitle className="text-xl">Frais enregistrés</CardTitle>
           <CardDescription>
             Filtrez la saison depuis l’en-tête du module, puis affinez par
-            catégorie ou par type.
+            catégorie de dépense, catégorie de tireur ou type.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="expense-category-filter">Catégorie</Label>
+              <Label htmlFor="expense-category-filter">
+                Catégorie de dépense
+              </Label>
               <Select
                 onValueChange={setCategoryFilter}
                 value={categoryFilter}
@@ -365,6 +408,28 @@ export function ExpenseManager({
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expense-fencing-category-filter">
+                Catégorie de tireur
+              </Label>
+              <Select
+                onValueChange={setFencingCategoryFilter}
+                value={fencingCategoryFilter}
+              >
+                <SelectTrigger id="expense-fencing-category-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les catégories</SelectItem>
+                  <SelectItem value="NONE">Non spécifiée</SelectItem>
+                  {fencingCategories.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {fencingCategoryLabels[value]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -396,7 +461,8 @@ export function ExpenseManager({
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Détail</TableHead>
-                <TableHead>Catégorie</TableHead>
+                <TableHead>Catégorie de dépense</TableHead>
+                <TableHead>Catégorie de tireur</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Saisi par</TableHead>
                 <TableHead className="text-right">Montant</TableHead>
@@ -422,6 +488,20 @@ export function ExpenseManager({
                   <TableCell>
                     <Badge
                       className={
+                        expense.fencingCategory
+                          ? fencingCategoryStyles[expense.fencingCategory].badge
+                          : "border-slate-200 bg-slate-50 text-slate-600"
+                      }
+                      variant="outline"
+                    >
+                      {expense.fencingCategory
+                        ? fencingCategoryLabels[expense.fencingCategory]
+                        : "Non spécifiée"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
                         expense.type === "ACCOMMODATION"
                           ? "border-blue-200 bg-blue-50 text-blue-800"
                           : "border-amber-200 bg-amber-50 text-amber-800"
@@ -443,7 +523,7 @@ export function ExpenseManager({
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-slate-500"
-                    colSpan={6}
+                    colSpan={7}
                   >
                     Aucun frais ne correspond à ces filtres.
                   </TableCell>
@@ -456,4 +536,3 @@ export function ExpenseManager({
     </div>
   );
 }
-

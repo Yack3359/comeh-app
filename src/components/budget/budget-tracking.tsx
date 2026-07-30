@@ -7,10 +7,15 @@ import {
   Download,
   RefreshCw,
   TrendingDown,
+  Users,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  fencingCategoryLabels,
+  fencingCategoryStyles,
+} from "@/components/fencing-category";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,7 +42,13 @@ type BudgetTrackingProps = {
   dataVersion: number;
 };
 
-function ProgressBar({ percentage }: { percentage: number }) {
+function ProgressBar({
+  percentage,
+  progressClassName,
+}: {
+  percentage: number;
+  progressClassName?: string;
+}) {
   const visualPercentage = Math.min(Math.max(percentage, 0), 100);
   const isOver = percentage > 100;
   const isWarning = percentage >= 80;
@@ -52,7 +63,7 @@ function ProgressBar({ percentage }: { percentage: number }) {
               ? "bg-accent"
               : isWarning
                 ? "bg-amber-500"
-                : "bg-primary",
+                : (progressClassName ?? "bg-primary"),
           )}
           style={{ width: `${visualPercentage}%` }}
         />
@@ -122,6 +133,14 @@ export function BudgetTracking({
 
   return (
     <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">
+          Total global de la saison
+        </h2>
+        <p className="text-sm text-slate-500">
+          Toutes les catégories de tireur sont incluses dans les dépenses.
+        </p>
+      </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-4 p-5">
@@ -185,6 +204,91 @@ export function BudgetTracking({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Users className="h-5 w-5 text-primary" />
+            Suivi par catégorie de tireur
+          </CardTitle>
+          <CardDescription>
+            Allocations prévisionnelles et dépenses réelles ventilées par
+            catégorie d’âge. Les frais non catégorisés restent isolés.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {tracking.fencingCategories.map((row) => {
+              const styles = row.fencingCategory
+                ? fencingCategoryStyles[row.fencingCategory]
+                : {
+                    badge: "border-slate-300 bg-white text-slate-700",
+                    card: "border-slate-300 bg-slate-50",
+                    accent: "bg-slate-200 text-slate-700",
+                    progress: "bg-slate-500",
+                  };
+              const label = row.fencingCategory
+                ? fencingCategoryLabels[row.fencingCategory]
+                : "Non spécifié";
+
+              return (
+                <div
+                  className={cn("rounded-lg border p-5", styles.card)}
+                  key={row.fencingCategory ?? "NONE"}
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <Badge className={styles.badge} variant="outline">
+                      {label}
+                    </Badge>
+                    {row.remaining < 0 ? (
+                      <Badge className="bg-accent" variant="destructive">
+                        Budget dépassé
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="mb-4 grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-xs text-slate-500">Prévu</p>
+                      <p className="mt-1 font-semibold tabular-nums text-slate-900">
+                        {formatCurrency(row.planned)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Dépensé</p>
+                      <p className="mt-1 font-semibold tabular-nums text-slate-900">
+                        {formatCurrency(row.spent)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Reste</p>
+                      <p
+                        className={cn(
+                          "mt-1 font-semibold tabular-nums",
+                          row.remaining < 0
+                            ? "text-accent"
+                            : "text-emerald-700",
+                        )}
+                      >
+                        {formatCurrency(row.remaining)}
+                      </p>
+                    </div>
+                  </div>
+                  <ProgressBar
+                    percentage={row.percentage}
+                    progressClassName={styles.progress}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          {tracking.fencingCategories.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">
+              Aucun budget ni frais n’est encore associé à une catégorie de
+              tireur.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

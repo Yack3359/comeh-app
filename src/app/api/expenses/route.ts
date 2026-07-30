@@ -32,6 +32,10 @@ export async function GET(request: Request) {
         where: {
           seasonId: parsedQuery.data.seasonId,
           categoryId: parsedQuery.data.categoryId,
+          fencingCategory:
+            parsedQuery.data.fencingCategory === "NONE"
+              ? null
+              : parsedQuery.data.fencingCategory,
           type: parsedQuery.data.type,
         },
         orderBy: [{ date: "desc" }, { id: "desc" }],
@@ -39,6 +43,7 @@ export async function GET(request: Request) {
           id: true,
           seasonId: true,
           categoryId: true,
+          fencingCategory: true,
           type: true,
           amount: true,
           date: true,
@@ -118,6 +123,7 @@ export async function POST(request: Request) {
           data: {
             seasonId: season.id,
             categoryId: category.id,
+            fencingCategory: parsedBody.data.fencingCategory,
             type: parsedBody.data.type,
             amount: parsedBody.data.amount,
             date: expenseDate,
@@ -159,4 +165,3 @@ export async function POST(request: Request) {
     return apiErrorResponse(error, "Impossible d’enregistrer le frais");
   }
 }
-

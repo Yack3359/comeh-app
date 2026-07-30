@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { fencingCategoryLabels } from "@/components/fencing-category";
 import { runAsAuthenticatedUser } from "@/lib/api-auth";
 import { apiErrorResponse, invalidDataResponse } from "@/lib/api-response";
 import { getBudgetTracking } from "@/lib/budget-tracking";
@@ -63,9 +64,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Saison introuvable" }, { status: 404 });
     }
 
-    const headerRow = ["Catégorie", "Prévu", "Dépensé", "Reste", "%"].map(
-      csvTextCell,
-    );
+    const headerRow = [
+      "Catégorie de dépense",
+      "Prévu",
+      "Dépensé",
+      "Reste",
+      "%",
+    ].map(csvTextCell);
     const dataRows = result.tracking.categories.map((category) => [
       csvTextCell(category.name),
       csvNumberCell(category.planned),
@@ -73,6 +78,26 @@ export async function GET(request: Request) {
       csvNumberCell(category.remaining),
       csvNumberCell(category.percentage),
     ]);
+    const fencingCategoryHeader = [
+      "Catégorie tireur",
+      "Prévu",
+      "Dépensé",
+      "Reste",
+      "%",
+    ].map(csvTextCell);
+    const fencingCategoryRows = result.tracking.fencingCategories.map(
+      (category) => [
+        csvTextCell(
+          category.fencingCategory
+            ? fencingCategoryLabels[category.fencingCategory]
+            : "Non spécifié",
+        ),
+        csvNumberCell(category.planned),
+        csvNumberCell(category.spent),
+        csvNumberCell(category.remaining),
+        csvNumberCell(category.percentage),
+      ],
+    );
     const fiscalYearHeader = ["Année civile", "Dépensé"].map(csvTextCell);
     const fiscalYearRows = result.tracking.fiscalYears.map((fiscalYear) => [
       csvTextCell(fiscalYear.label),
@@ -81,6 +106,9 @@ export async function GET(request: Request) {
     const csv = `\uFEFF${[
       headerRow,
       ...dataRows,
+      [],
+      fencingCategoryHeader,
+      ...fencingCategoryRows,
       [],
       fiscalYearHeader,
       ...fiscalYearRows,

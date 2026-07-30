@@ -34,6 +34,7 @@ export async function GET(request: Request) {
             where: { seasonId: parsedQuery.data.seasonId },
             select: {
               id: true,
+              fencingCategory: true,
               plannedAmount: true,
             },
           },
@@ -42,8 +43,11 @@ export async function GET(request: Request) {
 
       return categories.map(({ budgets, ...category }) => ({
         ...category,
-        budgetId: budgets[0]?.id ?? null,
-        plannedAmount: budgets[0]?.plannedAmount.toString() ?? "0.00",
+        budgets: budgets.map((budget) => ({
+          budgetId: budget.id,
+          fencingCategory: budget.fencingCategory,
+          plannedAmount: budget.plannedAmount.toString(),
+        })),
       }));
     });
 
@@ -71,9 +75,11 @@ export async function PUT(request: Request) {
   try {
     const result = await runAsAuthenticatedUser(
       async () => {
-        const categoryIds = parsedBody.data.budgets.map(
-          ({ categoryId }) => categoryId,
-        );
+        const categoryIds = [
+          ...new Set(
+            parsedBody.data.budgets.map(({ categoryId }) => categoryId),
+          ),
+        ];
         const validCategories = await prisma.budgetCategory.count({
           where: {
             seasonId: parsedBody.data.seasonId,
@@ -93,7 +99,7 @@ export async function PUT(request: Request) {
             where: {
               seasonId: parsedBody.data.seasonId,
               categoryId: budget.categoryId,
-              fencingCategory: null,
+              fencingCategory: budget.fencingCategory,
             },
             select: { id: true },
           });
@@ -108,7 +114,7 @@ export async function PUT(request: Request) {
               data: {
                 seasonId: parsedBody.data.seasonId,
                 categoryId: budget.categoryId,
-                fencingCategory: null,
+                fencingCategory: budget.fencingCategory,
                 plannedAmount: budget.plannedAmount,
               },
             });
@@ -136,4 +142,3 @@ export async function PUT(request: Request) {
     return apiErrorResponse(error, "Impossible d’enregistrer le budget");
   }
 }
-

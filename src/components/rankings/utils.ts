@@ -1,3 +1,8 @@
+import {
+  fencingCategoryLabels,
+  formatFencingCategory,
+} from "@/components/fencing-category";
+
 export const genderLabels = {
   FEMALE: "Femme",
   MALE: "Homme",
@@ -10,15 +15,7 @@ export const weaponLabels = {
   SABRE: "Sabre",
 } as const;
 
-export const fencingCategoryLabels = {
-  SENIOR: "Sénior",
-  U23: "U23",
-  M20: "M20 (moins de 20 ans)",
-  M17: "M17 (moins de 17 ans)",
-  M15: "M15",
-  M13: "M13",
-  VETERAN: "Vétéran",
-} as const;
+export { fencingCategoryLabels, formatFencingCategory };
 
 export const handednessLabels = {
   RIGHT_HANDED: "Droitier",
@@ -59,14 +56,6 @@ export function formatDate(value: string) {
     dateStyle: "medium",
     timeZone: "UTC",
   }).format(new Date(value));
-}
-
-export function formatFencingCategory(value: string) {
-  return (
-    fencingCategoryLabels[
-      value as keyof typeof fencingCategoryLabels
-    ] ?? value
-  );
 }
 
 export function formatCharacteristic(

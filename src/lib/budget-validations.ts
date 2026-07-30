@@ -1,4 +1,4 @@
-import { ExpenseType } from "@prisma/client";
+import { ExpenseType, FencingCategory } from "@prisma/client";
 import { z } from "zod";
 
 const idSchema = z.string().trim().min(1, "Identifiant requis").max(64);
@@ -31,29 +31,33 @@ export const budgetUpdateSchema = z
       .array(
         z.object({
           categoryId: idSchema,
+          fencingCategory: z.nativeEnum(FencingCategory).nullable(),
           plannedAmount: amountSchema,
         }),
       )
-      .max(200),
+      .max(1600),
   })
   .superRefine(({ budgets }, context) => {
-    const categoryIds = new Set<string>();
+    const budgetKeys = new Set<string>();
 
-    budgets.forEach(({ categoryId }, index) => {
-      if (categoryIds.has(categoryId)) {
+    budgets.forEach(({ categoryId, fencingCategory }, index) => {
+      const key = `${categoryId}:${fencingCategory ?? "ALL"}`;
+      if (budgetKeys.has(key)) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Une catégorie ne peut apparaître qu’une fois",
+          message:
+            "Une catégorie de dépense ne peut apparaître qu’une fois par catégorie de tireur",
           path: ["budgets", index, "categoryId"],
         });
       }
-      categoryIds.add(categoryId);
+      budgetKeys.add(key);
     });
   });
 
 export const expenseCreateSchema = z.object({
   seasonId: idSchema,
   categoryId: idSchema,
+  fencingCategory: z.nativeEnum(FencingCategory).nullable().optional().default(null),
   type: z.nativeEnum(ExpenseType),
   amount: amountSchema.refine((value) => Number(value) > 0, "Le montant doit être positif"),
   date: z
@@ -73,5 +77,8 @@ export const expenseCreateSchema = z.object({
 export const expenseQuerySchema = z.object({
   seasonId: idSchema.optional(),
   categoryId: idSchema.optional(),
+  fencingCategory: z
+    .union([z.nativeEnum(FencingCategory), z.literal("NONE")])
+    .optional(),
   type: z.nativeEnum(ExpenseType).optional(),
 });

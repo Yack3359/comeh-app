@@ -1,3 +1,5 @@
+import type { FencingCategoryValue } from "@/components/fencing-category";
+
 export type Season = {
   id: string;
   label: string;
@@ -22,14 +24,18 @@ export type BudgetCategory = {
 export type BudgetRow = {
   id: string;
   name: string;
-  budgetId: string | null;
-  plannedAmount: string;
+  budgets: Array<{
+    budgetId: string | null;
+    fencingCategory: FencingCategoryValue | null;
+    plannedAmount: string;
+  }>;
 };
 
 export type Expense = {
   id: string;
   seasonId: string;
   categoryId: string;
+  fencingCategory: FencingCategoryValue | null;
   type: "ACCOMMODATION" | "TRAVEL";
   amount: string;
   date: string;
@@ -56,6 +62,13 @@ export type TrackingData = {
   remaining: number;
   percentage: number;
   categories: TrackingRow[];
+  fencingCategories: Array<{
+    fencingCategory: FencingCategoryValue | null;
+    planned: number;
+    spent: number;
+    remaining: number;
+    percentage: number;
+  }>;
   fiscalYears: Array<{
     id: string;
     label: string;
