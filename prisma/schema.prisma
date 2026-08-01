@@ -82,6 +82,7 @@ model User {
   passwordHash  String        @map("password_hash")
   name          String
   role          Role          @default(COMEH_MEMBER)
+  disabled      Boolean       @default(false)
   createdAt     DateTime      @default(now()) @map("created_at")
   auditLogs     AuditLog[]
   expenses      Expense[]     @relation("ExpenseCreator")

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { runWithAuditContext } from "@/lib/audit-context";
 import { authOptions } from "@/lib/auth";
 import { hasAnyRole } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
 
 export async function runAsAuthenticatedUser<T>(
   operation: (userId: string) => Promise<T>,
@@ -16,7 +17,20 @@ export async function runAsAuthenticatedUser<T>(
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  if (allowedRoles && !hasAnyRole(session.user.role, allowedRoles)) {
+  // La session JWT peut être en retard sur la base (rôle changé, compte
+  // désactivé) : on revérifie l'état réel de l'utilisateur à chaque appel
+  // plutôt que de faire confiance au token, qui ne se rafraîchit qu'à la
+  // reconnexion.
+  const currentUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, disabled: true },
+  });
+
+  if (!currentUser || currentUser.disabled) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  if (allowedRoles && !hasAnyRole(currentUser.role, allowedRoles)) {
     return NextResponse.json({ error: "Accès interdit" }, { status: 403 });
   }
 

@@ -48,7 +48,11 @@ export const authOptions: NextAuthOptions = {
           where: { email },
         });
 
-        if (!user || !(await compare(password, user.passwordHash))) {
+        if (
+          !user ||
+          user.disabled ||
+          !(await compare(password, user.passwordHash))
+        ) {
           registerFailedLoginAttempt(email);
           return null;
         }
