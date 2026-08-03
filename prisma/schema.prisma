@@ -84,11 +84,34 @@ model User {
   role          Role          @default(COMEH_MEMBER)
   disabled      Boolean       @default(false)
   createdAt     DateTime      @default(now()) @map("created_at")
-  auditLogs     AuditLog[]
-  expenses      Expense[]     @relation("ExpenseCreator")
-  importBatches ImportBatch[]
+  auditLogs      AuditLog[]
+  expenses       Expense[]      @relation("ExpenseCreator")
+  importBatches  ImportBatch[]
+  securityEvents SecurityEvent[]
 
   @@map("users")
+}
+
+enum SecurityEventType {
+  LOGIN_SUCCESS  @map("login_success")
+  LOGIN_FAILURE  @map("login_failure")
+  ACCESS_DENIED  @map("access_denied")
+}
+
+model SecurityEvent {
+  id        String            @id @default(cuid())
+  type      SecurityEventType
+  email     String?
+  userId    String?           @map("user_id")
+  ipAddress String?           @map("ip_address")
+  userAgent String?           @map("user_agent")
+  detail    String?
+  createdAt DateTime          @default(now()) @map("created_at")
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([userId])
+  @@map("security_events")
 }
 
 model AuditLog {

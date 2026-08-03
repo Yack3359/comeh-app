@@ -8,6 +8,7 @@ import {
   registerFailedLoginAttempt,
 } from "@/lib/login-rate-limit";
 import { prisma } from "@/lib/prisma";
+import { extractClientIp, recordSecurityEvent } from "@/lib/security-events";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -30,15 +31,27 @@ export const authOptions: NextAuthOptions = {
           type: "password",
         },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
+        const ipAddress = extractClientIp(req?.headers ?? {});
+        const userAgent =
+          (req?.headers as Record<string, string | undefined> | undefined)?.[
+            "user-agent"
+          ] ?? null;
 
         if (!email || !password) {
           return null;
         }
 
         if (isLoginRateLimited(email)) {
+          await recordSecurityEvent({
+            type: "LOGIN_FAILURE",
+            email,
+            ipAddress,
+            userAgent,
+            detail: "Bloqué par le rate limiting",
+          });
           throw new Error(
             "Trop de tentatives échouées. Réessayez dans quelques minutes.",
           );
@@ -54,10 +67,29 @@ export const authOptions: NextAuthOptions = {
           !(await compare(password, user.passwordHash))
         ) {
           registerFailedLoginAttempt(email);
+          await recordSecurityEvent({
+            type: "LOGIN_FAILURE",
+            email,
+            userId: user?.id,
+            ipAddress,
+            userAgent,
+            detail: !user
+              ? "Compte inconnu"
+              : user.disabled
+                ? "Compte désactivé"
+                : "Mot de passe invalide",
+          });
           return null;
         }
 
         clearLoginAttempts(email);
+        await recordSecurityEvent({
+          type: "LOGIN_SUCCESS",
+          email,
+          userId: user.id,
+          ipAddress,
+          userAgent,
+        });
 
         return {
           id: user.id,

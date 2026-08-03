@@ -1,11 +1,13 @@
 import type { Role } from "@prisma/client";
 import { getServerSession } from "next-auth";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { runWithAuditContext } from "@/lib/audit-context";
 import { authOptions } from "@/lib/auth";
 import { hasAnyRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { extractClientIp, recordSecurityEvent } from "@/lib/security-events";
 
 export async function runAsAuthenticatedUser<T>(
   operation: (userId: string) => Promise<T>,
@@ -31,6 +33,14 @@ export async function runAsAuthenticatedUser<T>(
   }
 
   if (allowedRoles && !hasAnyRole(currentUser.role, allowedRoles)) {
+    const requestHeaders = headers();
+    void recordSecurityEvent({
+      type: "ACCESS_DENIED",
+      userId: session.user.id,
+      ipAddress: extractClientIp(requestHeaders),
+      userAgent: requestHeaders.get("user-agent"),
+      detail: `Rôle ${currentUser.role} insuffisant (requis: ${allowedRoles.join(", ")})`,
+    });
     return NextResponse.json({ error: "Accès interdit" }, { status: 403 });
   }
 

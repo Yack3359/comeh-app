@@ -6,6 +6,7 @@ import {
   LogOut,
   Medal,
   ScrollText,
+  ShieldAlert,
   ShieldCheck,
   Users,
   WalletCards,
@@ -112,6 +113,13 @@ export function AppShell({ children, session }: AppShellProps) {
                 >
                   <ScrollText className="h-4 w-4" />
                   Journal d’audit
+                </Link>
+                <Link
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary-50"
+                  href="/security"
+                >
+                  <ShieldAlert className="h-4 w-4" />
+                  Sécurité
                 </Link>
               </>
             ) : null}
