@@ -23,7 +23,7 @@ export const defaultCompetitionFilters: CompetitionFilters = {
   enabled: true,
   weapon: "EPEE",
   gender: "MALE",
-  categoryExclude: "VETERAN",
+  categoryExclude: "none",
 };
 
 type CompetitionFilterPanelProps = {
@@ -80,7 +80,7 @@ export function CompetitionFilterPanel({
             Périmètre des compétitions
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Par défaut : Épée Hommes, hors Vétérans.
+            Par défaut : Épée Hommes.
           </p>
         </div>
         <Button
@@ -96,51 +96,23 @@ export function CompetitionFilterPanel({
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-weapon`}>Arme</Label>
-          <Select
-            disabled={!filters.enabled}
-            onValueChange={(weapon) =>
-              onChange({
-                ...filters,
-                weapon: weapon as CompetitionFilters["weapon"],
-              })
-            }
-            value={filters.weapon}
-          >
+          <Select disabled value="EPEE">
             <SelectTrigger id={`${idPrefix}-weapon`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Toutes les armes</SelectItem>
-              {Object.entries(weaponLabels).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
+              <SelectItem value="EPEE">{weaponLabels.EPEE}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-gender`}>Sexe</Label>
-          <Select
-            disabled={!filters.enabled}
-            onValueChange={(gender) =>
-              onChange({
-                ...filters,
-                gender: gender as CompetitionFilters["gender"],
-              })
-            }
-            value={filters.gender}
-          >
+          <Select disabled value="MALE">
             <SelectTrigger id={`${idPrefix}-gender`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les sexes</SelectItem>
-              {Object.entries(genderLabels).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
+              <SelectItem value="MALE">{genderLabels.MALE}</SelectItem>
             </SelectContent>
           </Select>
         </div>

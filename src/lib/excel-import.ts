@@ -79,26 +79,48 @@ export type ExcelResultRow = {
   competitionName: string;
   date: string;
   rank: string;
+  seedRank: string;
+  poolRank: string;
   won: string;
-  score: string;
+  scoreFor: string;
+  scoreAgainst: string;
   round: string;
 };
 
+/** Sépare un score combiné "15-12" en 2 valeurs, colonne unique tolérée en secours. */
+function splitCombinedScore(value: string): [string, string] {
+  const match = value.match(/(\d+)\s*[-–]\s*(\d+)/);
+  return match ? [match[1], match[2]] : ["", ""];
+}
+
 /**
  * Colonnes attendues : athlete, adversaire (optionnel), competition, date,
- * rang (optionnel), victoire (oui/non, optionnel), score (optionnel), tour (optionnel).
+ * rang (optionnel), classement initial (optionnel), classement poule
+ * (optionnel), victoire (oui/non, optionnel), score pour/score contre (ou à
+ * défaut une colonne "score" combinée du type "15-12"), tour (optionnel).
  */
 export function parseResultsExcel(buffer: Buffer): ExcelResultRow[] {
   return readFirstSheetAsRows(buffer)
-    .map((row) => ({
-      athleteName: firstNonEmpty(row, ["athlete", "tireur"]),
-      opponentName: firstNonEmpty(row, ["adversaire", "opponent"]),
-      competitionName: firstNonEmpty(row, ["competition"]),
-      date: firstNonEmpty(row, ["date"]),
-      rank: firstNonEmpty(row, ["rang", "rank", "classement"]),
-      won: firstNonEmpty(row, ["victoire", "won", "resultat"]),
-      score: firstNonEmpty(row, ["score"]),
-      round: firstNonEmpty(row, ["tour", "round", "phase"]),
-    }))
+    .map((row) => {
+      const combinedScore = firstNonEmpty(row, ["score"]);
+      const [fallbackFor, fallbackAgainst] = splitCombinedScore(combinedScore);
+
+      return {
+        athleteName: firstNonEmpty(row, ["athlete", "tireur"]),
+        opponentName: firstNonEmpty(row, ["adversaire", "opponent"]),
+        competitionName: firstNonEmpty(row, ["competition"]),
+        date: firstNonEmpty(row, ["date"]),
+        rank: firstNonEmpty(row, ["rang", "rank", "classement"]),
+        seedRank: firstNonEmpty(row, ["classement_initial", "seed_rank"]),
+        poolRank: firstNonEmpty(row, ["classement_poule", "pool_rank"]),
+        won: firstNonEmpty(row, ["victoire", "won", "resultat"]),
+        scoreFor:
+          firstNonEmpty(row, ["score_pour", "score_tireur"]) || fallbackFor,
+        scoreAgainst:
+          firstNonEmpty(row, ["score_contre", "score_adversaire"]) ||
+          fallbackAgainst,
+        round: firstNonEmpty(row, ["tour", "round", "phase"]),
+      };
+    })
     .filter((row) => row.athleteName);
 }

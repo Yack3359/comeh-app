@@ -1,6 +1,6 @@
 "use client";
 
-import { PlusCircle } from "lucide-react";
+import { Download, PlusCircle, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -37,10 +37,9 @@ import {
 } from "@/components/ui/table";
 
 import { SeasonSelect } from "./season-select";
-import type { BudgetCategory, Expense, Season } from "./types";
+import type { BudgetCategory, Competition, Expense, Season } from "./types";
 import {
   dateInputValue,
-  expenseTypeLabels,
   formatCurrency,
   formatDate,
   requestJson,
@@ -86,23 +85,22 @@ export function ExpenseManager({
   onChanged,
 }: ExpenseManagerProps) {
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [fencingCategory, setFencingCategory] = useState<
     FencingCategoryValue | "NONE"
   >("NONE");
-  const [type, setType] =
-    useState<keyof typeof expenseTypeLabels>("ACCOMMODATION");
+  const [competitionId, setCompetitionId] = useState<string>("NONE");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
-  const [relatedEvent, setRelatedEvent] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [fencingCategoryFilter, setFencingCategoryFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [detailExpense, setDetailExpense] = useState<Expense | null>(null);
 
   const currentSeason = useMemo(
     () => seasons.find((season) => season.id === seasonId),
@@ -126,6 +124,19 @@ export function ExpenseManager({
     );
   }, [seasonId]);
 
+  const loadCompetitions = useCallback(async () => {
+    if (!seasonId) {
+      setCompetitions([]);
+      return;
+    }
+
+    setCompetitions(
+      await requestJson<Competition[]>(
+        `/api/competitions?seasonId=${encodeURIComponent(seasonId)}`,
+      ),
+    );
+  }, [seasonId]);
+
   const loadExpenses = useCallback(async () => {
     if (!seasonId) {
       setExpenses([]);
@@ -139,16 +150,14 @@ export function ExpenseManager({
     if (fencingCategoryFilter !== "all") {
       params.set("fencingCategory", fencingCategoryFilter);
     }
-    if (typeFilter !== "all") {
-      params.set("type", typeFilter);
-    }
 
     setExpenses(await requestJson<Expense[]>(`/api/expenses?${params}`));
-  }, [categoryFilter, fencingCategoryFilter, seasonId, typeFilter]);
+  }, [categoryFilter, fencingCategoryFilter, seasonId]);
 
   useEffect(() => {
     setCategoryFilter("all");
     setFencingCategoryFilter("all");
+    setCompetitionId("NONE");
     setDate(initialDate(currentSeason));
   }, [currentSeason]);
 
@@ -160,6 +169,15 @@ export function ExpenseManager({
       );
     });
   }, [categoryVersion, loadCategories]);
+
+  useEffect(() => {
+    setError(null);
+    void loadCompetitions().catch((loadError: unknown) => {
+      setError(
+        loadError instanceof Error ? loadError.message : "Chargement impossible",
+      );
+    });
+  }, [loadCompetitions]);
 
   useEffect(() => {
     setError(null);
@@ -184,16 +202,14 @@ export function ExpenseManager({
           categoryId,
           fencingCategory:
             fencingCategory === "NONE" ? null : fencingCategory,
-          type,
+          competitionId: competitionId === "NONE" ? null : competitionId,
           amount,
           date,
           description,
-          relatedEvent,
         }),
       });
       setAmount("");
       setDescription("");
-      setRelatedEvent("");
       setMessage("Note de frais enregistrée.");
       await loadExpenses();
       onChanged();
@@ -272,19 +288,23 @@ export function ExpenseManager({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expense-type">Type</Label>
-                  <Select
-                    onValueChange={(value) =>
-                      setType(value as keyof typeof expenseTypeLabels)
-                    }
-                    value={type}
-                  >
-                    <SelectTrigger id="expense-type">
-                      <SelectValue />
+                  <Label htmlFor="expense-competition">
+                    Compétition{" "}
+                    <span className="font-normal text-slate-400">
+                      (facultatif)
+                    </span>
+                  </Label>
+                  <Select onValueChange={setCompetitionId} value={competitionId}>
+                    <SelectTrigger id="expense-competition">
+                      <SelectValue placeholder="Choisir une compétition" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ACCOMMODATION">Hébergement</SelectItem>
-                      <SelectItem value="TRAVEL">Déplacement</SelectItem>
+                      <SelectItem value="NONE">Aucune</SelectItem>
+                      {competitions.map((competition) => (
+                        <SelectItem key={competition.id} value={competition.id}>
+                          {competition.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -309,32 +329,17 @@ export function ExpenseManager({
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="expense-date">Date</Label>
-                  <Input
-                    id="expense-date"
-                    max={currentSeason?.endDate.slice(0, 10)}
-                    min={currentSeason?.startDate.slice(0, 10)}
-                    onChange={(event) => setDate(event.target.value)}
-                    required
-                    type="date"
-                    value={date}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expense-related">
-                    Compétition / déplacement{" "}
-                    <span className="font-normal text-slate-400">(facultatif)</span>
-                  </Label>
-                  <Input
-                    id="expense-related"
-                    maxLength={160}
-                    onChange={(event) => setRelatedEvent(event.target.value)}
-                    placeholder="Ex. Coupe du monde de Paris"
-                    value={relatedEvent}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="expense-date">Date</Label>
+                <Input
+                  id="expense-date"
+                  max={currentSeason?.endDate.slice(0, 10)}
+                  min={currentSeason?.startDate.slice(0, 10)}
+                  onChange={(event) => setDate(event.target.value)}
+                  required
+                  type="date"
+                  value={date}
+                />
               </div>
 
               <div className="space-y-2">
@@ -383,15 +388,25 @@ export function ExpenseManager({
       ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Frais enregistrés</CardTitle>
-          <CardDescription>
-            Filtrez la saison depuis l’en-tête du module, puis affinez par
-            catégorie de dépense, catégorie de tireur ou type.
-          </CardDescription>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-xl">Frais enregistrés</CardTitle>
+            <CardDescription>
+              Filtrez la saison depuis l’en-tête du module, puis affinez par
+              catégorie de dépense ou catégorie de tireur.
+            </CardDescription>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <a
+              href={`/api/expenses/export?seasonId=${encodeURIComponent(seasonId)}`}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exporter le détail (CSV)
+            </a>
+          </Button>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="expense-category-filter">
                 Catégorie de dépense
@@ -435,19 +450,6 @@ export function ExpenseManager({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="expense-type-filter">Type</Label>
-              <Select onValueChange={setTypeFilter} value={typeFilter}>
-                <SelectTrigger id="expense-type-filter">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les types</SelectItem>
-                  <SelectItem value="ACCOMMODATION">Hébergement</SelectItem>
-                  <SelectItem value="TRAVEL">Déplacement</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           {!canManage && error ? (
@@ -463,7 +465,6 @@ export function ExpenseManager({
                 <TableHead>Détail</TableHead>
                 <TableHead>Catégorie de dépense</TableHead>
                 <TableHead>Catégorie de tireur</TableHead>
-                <TableHead>Type</TableHead>
                 <TableHead>Saisi par</TableHead>
                 <TableHead className="text-right">Montant</TableHead>
               </TableRow>
@@ -475,12 +476,16 @@ export function ExpenseManager({
                     {formatDate(expense.date)}
                   </TableCell>
                   <TableCell className="min-w-56">
-                    <p className="font-medium text-slate-900">
-                      {expense.description}
-                    </p>
-                    {expense.relatedEvent ? (
-                      <p className="mt-1 text-xs text-slate-500">
-                        {expense.relatedEvent}
+                    <button
+                      className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
+                      onClick={() => setDetailExpense(expense)}
+                      type="button"
+                    >
+                      {expense.competition?.name ?? expense.description}
+                    </button>
+                    {expense.competition ? (
+                      <p className="mt-1 line-clamp-1 text-xs text-slate-500">
+                        {expense.description}
                       </p>
                     ) : null}
                   </TableCell>
@@ -499,18 +504,6 @@ export function ExpenseManager({
                         : "Non spécifiée"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <Badge
-                      className={
-                        expense.type === "ACCOMMODATION"
-                          ? "border-blue-200 bg-blue-50 text-blue-800"
-                          : "border-amber-200 bg-amber-50 text-amber-800"
-                      }
-                      variant="outline"
-                    >
-                      {expenseTypeLabels[expense.type]}
-                    </Badge>
-                  </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {expense.createdBy.name}
                   </TableCell>
@@ -523,7 +516,7 @@ export function ExpenseManager({
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-slate-500"
-                    colSpan={7}
+                    colSpan={6}
                   >
                     Aucun frais ne correspond à ces filtres.
                   </TableCell>
@@ -533,6 +526,90 @@ export function ExpenseManager({
           </Table>
         </CardContent>
       </Card>
+
+      {detailExpense ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => setDetailExpense(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-institutional"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <h2 className="text-lg font-semibold text-primary">
+                Détail de la dépense
+              </h2>
+              <Button
+                aria-label="Fermer"
+                onClick={() => setDetailExpense(null)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="text-xs font-semibold uppercase text-slate-400">
+                  Date
+                </dt>
+                <dd>{formatDate(detailExpense.date)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase text-slate-400">
+                  Description
+                </dt>
+                <dd>{detailExpense.description}</dd>
+              </div>
+              {detailExpense.competition ? (
+                <div>
+                  <dt className="text-xs font-semibold uppercase text-slate-400">
+                    Compétition
+                  </dt>
+                  <dd>
+                    {detailExpense.competition.name}
+                    {detailExpense.competition.location
+                      ? ` · ${detailExpense.competition.location}`
+                      : ""}
+                  </dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-xs font-semibold uppercase text-slate-400">
+                  Catégorie de dépense
+                </dt>
+                <dd>{detailExpense.category.name}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase text-slate-400">
+                  Catégorie de tireur
+                </dt>
+                <dd>
+                  {detailExpense.fencingCategory
+                    ? fencingCategoryLabels[detailExpense.fencingCategory]
+                    : "Non spécifiée"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase text-slate-400">
+                  Montant
+                </dt>
+                <dd className="font-semibold">
+                  {formatCurrency(detailExpense.amount)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase text-slate-400">
+                  Saisi par
+                </dt>
+                <dd>{detailExpense.createdBy.name}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

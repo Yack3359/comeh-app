@@ -5,7 +5,6 @@ export const fencingCategories = [
   "M17",
   "M15",
   "M13",
-  "VETERAN",
 ] as const;
 
 export type FencingCategoryValue = (typeof fencingCategories)[number];
@@ -17,7 +16,6 @@ export const fencingCategoryLabels: Record<FencingCategoryValue, string> = {
   M17: "M17 (moins de 17 ans)",
   M15: "M15",
   M13: "M13",
-  VETERAN: "Vétéran",
 };
 
 export const fencingCategoryStyles: Record<
@@ -64,12 +62,6 @@ export const fencingCategoryStyles: Record<
     card: "border-rose-200 bg-rose-50/50",
     accent: "bg-rose-100 text-rose-700",
     progress: "bg-rose-500",
-  },
-  VETERAN: {
-    badge: "border-slate-300 bg-slate-100 text-slate-700",
-    card: "border-slate-300 bg-slate-50",
-    accent: "bg-slate-200 text-slate-700",
-    progress: "bg-slate-600",
   },
 };
 

@@ -36,6 +36,17 @@ export async function GET(request: Request) {
               label: true,
             },
           },
+          members: {
+            orderBy: [{ bibNumber: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              bibNumber: true,
+              athleteId: true,
+              athlete: {
+                select: { firstName: true, lastName: true },
+              },
+            },
+          },
           _count: {
             select: { results: true },
           },

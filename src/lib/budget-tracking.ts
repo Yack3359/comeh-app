@@ -59,14 +59,10 @@ export async function getBudgetTracking(seasonId: string) {
   });
 
   const rows = categories.map(({ budgets, ...category }) => {
-    const globalBudgets = budgets.filter(
-      (budget) => budget.fencingCategory === null,
-    );
-    const relevantBudgets =
-      globalBudgets.length > 0
-        ? globalBudgets
-        : budgets.filter((budget) => budget.fencingCategory !== null);
-    const planned = relevantBudgets.reduce(
+    // fencingCategory est désormais obligatoire sur Budget : le prévu d'une
+    // catégorie de dépense est simplement la somme de ses lignes par
+    // catégorie de tireur, sans ligne "recap" ambiguë à démêler.
+    const planned = budgets.reduce(
       (total, budget) => total + Number(budget.plannedAmount),
       0,
     );
@@ -177,4 +173,57 @@ export async function getBudgetTracking(seasonId: string) {
     fencingCategories: fencingCategoryRows,
     fiscalYears: spentByFiscalYear,
   };
+}
+
+/**
+ * Détail des dépenses prévues/dépensées par catégorie de dépense, pour une
+ * seule catégorie de tireur (drill-down depuis l'encart "Suivi par catégorie
+ * de tireur").
+ */
+export async function getBudgetTrackingByFencingCategory(
+  seasonId: string,
+  fencingCategory: FencingCategoryValue,
+) {
+  const [categories, expenseTotals] = await Promise.all([
+    prisma.budgetCategory.findMany({
+      where: { seasonId },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        budgets: {
+          where: { seasonId, fencingCategory },
+          select: { plannedAmount: true },
+        },
+      },
+    }),
+    prisma.expense.groupBy({
+      by: ["categoryId"],
+      where: { seasonId, fencingCategory },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const spentByCategory = new Map<string, number>();
+  expenseTotals.forEach((total) => {
+    spentByCategory.set(total.categoryId, Number(total._sum.amount ?? 0));
+  });
+
+  return categories
+    .map(({ budgets, ...category }) => {
+      const planned = budgets.reduce(
+        (total, budget) => total + Number(budget.plannedAmount),
+        0,
+      );
+      const spent = spentByCategory.get(category.id) ?? 0;
+
+      return {
+        ...category,
+        planned,
+        spent,
+        remaining: planned - spent,
+        percentage: percentage(planned, spent),
+      };
+    })
+    .filter((row) => row.planned > 0 || row.spent > 0);
 }

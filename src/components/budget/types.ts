@@ -26,9 +26,16 @@ export type BudgetRow = {
   name: string;
   budgets: Array<{
     budgetId: string | null;
-    fencingCategory: FencingCategoryValue | null;
+    fencingCategory: FencingCategoryValue;
     plannedAmount: string;
   }>;
+};
+
+export type Competition = {
+  id: string;
+  name: string;
+  location: string;
+  date: string;
 };
 
 export type Expense = {
@@ -36,14 +43,15 @@ export type Expense = {
   seasonId: string;
   categoryId: string;
   fencingCategory: FencingCategoryValue | null;
-  type: "ACCOMMODATION" | "TRAVEL";
+  competitionId: string | null;
   amount: string;
   date: string;
   description: string;
-  relatedEvent: string | null;
   source: "MANUAL" | "IMPORT";
+  attachmentUrl: string | null;
   category: { name: string };
   season: { label: string };
+  competition: Competition | null;
   createdBy: { name: string };
 };
 

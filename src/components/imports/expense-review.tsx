@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import type { Category, ImportExtractionEnvelope } from "./types";
+import type { Category, Competition, ImportExtractionEnvelope } from "./types";
 import {
   asRecord,
   normalizeText,
@@ -23,51 +23,38 @@ import {
   textValue,
 } from "./utils";
 
-type ExpenseType = "" | "ACCOMMODATION" | "TRAVEL";
-
 type ExpenseDraft = {
   amount: string;
   date: string;
-  type: ExpenseType;
   description: string;
-  relatedEvent: string;
+  competitionId: string;
+  competitionHint: string;
   categoryId: string;
   categoryHint: string;
   confidence: string;
   notes: string;
 };
 
-type ExpenseReviewProps = {
-  batchId: string;
-  envelope: ImportExtractionEnvelope;
-  onValidated: () => Promise<void>;
-};
-
-function importedExpenseType(value: unknown): ExpenseType {
-  const normalized = normalizeText(textValue(value));
-  if (["hebergement", "accommodation"].includes(normalized)) {
-    return "ACCOMMODATION";
-  }
-  if (["deplacement", "travel"].includes(normalized)) {
-    return "TRAVEL";
-  }
-  return "";
-}
-
 function createDraft(value: unknown): ExpenseDraft {
   const row = asRecord(value);
   return {
     amount: textValue(row.amount).replace(",", "."),
     date: textValue(row.date),
-    type: importedExpenseType(row.type),
     description: textValue(row.description),
-    relatedEvent: textValue(row.relatedEvent),
+    competitionId: "NONE",
+    competitionHint: textValue(row.relatedEvent),
     categoryId: "",
     categoryHint: textValue(row.category),
     confidence: textValue(row.confidence),
     notes: textValue(row.notes),
   };
 }
+
+type ExpenseReviewProps = {
+  batchId: string;
+  envelope: ImportExtractionEnvelope;
+  onValidated: () => Promise<void>;
+};
 
 export function ExpenseReview({
   batchId,
@@ -78,6 +65,7 @@ export function ExpenseReview({
     envelope.rows.map(createDraft),
   );
   const [categories, setCategories] = useState<Category[]>([]);
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -116,6 +104,29 @@ export function ExpenseReview({
             : "Impossible de charger les catégories",
         );
       });
+
+    void requestJson<Competition[]>(
+      `/api/competitions?seasonId=${encodeURIComponent(envelope.seasonId)}`,
+    )
+      .then((loadedCompetitions) => {
+        setCompetitions(loadedCompetitions);
+        setDrafts((current) =>
+          current.map((draft) => {
+            if (draft.competitionId !== "NONE" || !draft.competitionHint) {
+              return draft;
+            }
+            const match = loadedCompetitions.find(
+              (competition) =>
+                normalizeText(competition.name) ===
+                normalizeText(draft.competitionHint),
+            );
+            return match ? { ...draft, competitionId: match.id } : draft;
+          }),
+        );
+      })
+      .catch(() => {
+        setCompetitions([]);
+      });
   }, [envelope.seasonId]);
 
   function updateDraft(index: number, patch: Partial<ExpenseDraft>) {
@@ -138,7 +149,6 @@ export function ExpenseReview({
         if (
           !draft.amount ||
           !draft.date ||
-          !draft.type ||
           !draft.description.trim() ||
           !draft.categoryId
         ) {
@@ -152,11 +162,11 @@ export function ExpenseReview({
           data: {
             seasonId: envelope.seasonId,
             categoryId: draft.categoryId,
-            type: draft.type,
+            competitionId:
+              draft.competitionId === "NONE" ? null : draft.competitionId,
             amount: draft.amount,
             date: draft.date,
             description: draft.description,
-            relatedEvent: draft.relatedEvent,
           },
         };
       });
@@ -268,19 +278,28 @@ export function ExpenseReview({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`${batchId}-type-${index}`}>Nature</Label>
+                <Label htmlFor={`${batchId}-competition-${index}`}>
+                  Compétition{" "}
+                  <span className="font-normal text-slate-400">
+                    (facultatif)
+                  </span>
+                </Label>
                 <Select
                   onValueChange={(value) =>
-                    updateDraft(index, { type: value as ExpenseType })
+                    updateDraft(index, { competitionId: value })
                   }
-                  value={draft.type}
+                  value={draft.competitionId}
                 >
-                  <SelectTrigger id={`${batchId}-type-${index}`}>
-                    <SelectValue placeholder="Choisir la nature" />
+                  <SelectTrigger id={`${batchId}-competition-${index}`}>
+                    <SelectValue placeholder="Choisir une compétition" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ACCOMMODATION">Hébergement</SelectItem>
-                    <SelectItem value="TRAVEL">Déplacement</SelectItem>
+                    <SelectItem value="NONE">Aucune</SelectItem>
+                    {competitions.map((competition) => (
+                      <SelectItem key={competition.id} value={competition.id}>
+                        {competition.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -319,22 +338,6 @@ export function ExpenseReview({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                <Label htmlFor={`${batchId}-event-${index}`}>
-                  Événement associé{" "}
-                  <span className="font-normal text-slate-400">
-                    (facultatif)
-                  </span>
-                </Label>
-                <Input
-                  id={`${batchId}-event-${index}`}
-                  maxLength={160}
-                  onChange={(event) =>
-                    updateDraft(index, { relatedEvent: event.target.value })
-                  }
-                  value={draft.relatedEvent}
-                />
               </div>
             </div>
 

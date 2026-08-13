@@ -8,6 +8,10 @@
     --foreground: 214 59% 15%;
     --card: 0 0% 100%;
     --card-foreground: 214 59% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 214 59% 15%;
+    --destructive: 356 95% 46%;
+    --destructive-foreground: 0 0% 100%;
     --muted: 214 28% 94%;
     --muted-foreground: 215 16% 47%;
     --border: 214 24% 88%;

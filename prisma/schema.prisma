@@ -13,11 +13,6 @@ enum Role {
   READONLY     @map("readonly")
 }
 
-enum ExpenseType {
-  ACCOMMODATION @map("hebergement")
-  TRAVEL        @map("deplacement")
-}
-
 enum ExpenseSource {
   MANUAL @map("manuel")
   IMPORT @map("import")
@@ -54,13 +49,12 @@ enum Weapon {
 }
 
 enum FencingCategory {
-  SENIOR   @map("senior")
-  U23      @map("u23")
-  M20      @map("m20")
-  M17      @map("m17")
-  M15      @map("m15")
-  M13      @map("m13")
-  VETERAN  @map("veteran")
+  SENIOR @map("senior")
+  U23    @map("u23")
+  M20    @map("m20")
+  M17    @map("m17")
+  M15    @map("m15")
+  M13    @map("m13")
 }
 
 enum ImportSourceType {
@@ -77,15 +71,15 @@ enum ImportStatus {
 }
 
 model User {
-  id            String        @id @default(cuid())
-  email         String        @unique
-  passwordHash  String        @map("password_hash")
-  name          String
-  role          Role          @default(COMEH_MEMBER)
-  disabled      Boolean       @default(false)
-  createdAt     DateTime      @default(now()) @map("created_at")
+  id             String          @id @default(cuid())
+  email          String          @unique
+  passwordHash   String          @map("password_hash")
+  name           String
+  role           Role            @default(COMEH_MEMBER)
+  disabled       Boolean         @default(false)
+  createdAt      DateTime        @default(now()) @map("created_at")
   auditLogs      AuditLog[]
-  expenses       Expense[]      @relation("ExpenseCreator")
+  expenses       Expense[]       @relation("ExpenseCreator")
   importBatches  ImportBatch[]
   securityEvents SecurityEvent[]
 
@@ -93,9 +87,9 @@ model User {
 }
 
 enum SecurityEventType {
-  LOGIN_SUCCESS  @map("login_success")
-  LOGIN_FAILURE  @map("login_failure")
-  ACCESS_DENIED  @map("access_denied")
+  LOGIN_SUCCESS @map("login_success")
+  LOGIN_FAILURE @map("login_failure")
+  ACCESS_DENIED @map("access_denied")
 }
 
 model SecurityEvent {
@@ -169,13 +163,13 @@ model BudgetCategory {
 }
 
 model Budget {
-  id              String           @id @default(cuid())
-  seasonId        String           @map("season_id")
-  categoryId      String           @map("category_id")
-  fencingCategory FencingCategory? @map("fencing_category")
-  plannedAmount   Decimal          @map("planned_amount") @db.Decimal(12, 2)
-  season          Season           @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  category        BudgetCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id              String          @id @default(cuid())
+  seasonId        String          @map("season_id")
+  categoryId      String          @map("category_id")
+  fencingCategory FencingCategory @map("fencing_category")
+  plannedAmount   Decimal         @map("planned_amount") @db.Decimal(12, 2)
+  season          Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  category        BudgetCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([seasonId, categoryId, fencingCategory])
   @@index([categoryId])
@@ -188,7 +182,6 @@ model Expense {
   seasonId        String           @map("season_id")
   categoryId      String           @map("category_id")
   fencingCategory FencingCategory? @map("fencing_category")
-  type            ExpenseType
   amount          Decimal          @db.Decimal(12, 2)
   date            DateTime         @db.Date
   description     String
@@ -240,6 +233,7 @@ model Athlete {
   categorySeasons AthleteCategorySeason[]
   results         Result[]                @relation("ResultAthlete")
   opponentResults Result[]                @relation("ResultOpponent")
+  teamMemberships TeamMember[]
 
   @@index([lastName, firstName])
   @@index([country])
@@ -247,13 +241,13 @@ model Athlete {
 }
 
 model AthleteCategorySeason {
-  athleteId          String          @map("athlete_id")
-  seasonId           String          @map("season_id")
-  category           FencingCategory
-  rankingPoints      Decimal?        @map("ranking_points") @db.Decimal(10, 2)
-  selectionCriteria  String?         @map("selection_criteria")
-  athlete            Athlete         @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  season             Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  athleteId         String          @map("athlete_id")
+  seasonId          String          @map("season_id")
+  category          FencingCategory
+  rankingPoints     Decimal?        @map("ranking_points") @db.Decimal(10, 2)
+  selectionCriteria String?         @map("selection_criteria")
+  athlete           Athlete         @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  season            Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@id([athleteId, seasonId])
   @@index([seasonId, category])
@@ -261,32 +255,49 @@ model AthleteCategorySeason {
 }
 
 model Team {
-  id       String   @id @default(cuid())
+  id       String       @id @default(cuid())
   name     String
-  seasonId String   @map("season_id")
-  season   Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId String       @map("season_id")
+  season   Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   results  Result[]
+  members  TeamMember[]
 
   @@unique([seasonId, name])
   @@index([seasonId])
   @@map("teams")
 }
 
+model TeamMember {
+  id        String  @id @default(cuid())
+  teamId    String  @map("team_id")
+  athleteId String  @map("athlete_id")
+  bibNumber Int?    @map("bib_number")
+  team      Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  athlete   Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, athleteId])
+  @@unique([teamId, bibNumber])
+  @@index([teamId])
+  @@index([athleteId])
+  @@map("team_members")
+}
+
 model Competition {
-  id       String           @id @default(cuid())
-  name     String
-  location String
-  country  String
-  date     DateTime         @db.Date
-  seasonId String           @map("season_id")
-  level    String
-  weapon   Weapon?
-  gender   Gender?
-  category FencingCategory?
-  season   Season           @relation(fields: [seasonId], references: [id], onDelete: Restrict)
-  results  Result[]
-  expenses Expense[]
-  trips    Trip[]
+  id          String           @id @default(cuid())
+  name        String
+  location    String
+  country     String
+  date        DateTime         @db.Date
+  seasonId    String           @map("season_id")
+  level       String
+  weapon      Weapon?
+  gender      Gender?
+  category    FencingCategory?
+  isSelective Boolean          @default(false) @map("is_selective")
+  season      Season           @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  results     Result[]
+  expenses    Expense[]
+  trips       Trip[]
 
   @@index([seasonId, date])
   @@index([weapon, gender, category])
@@ -299,10 +310,15 @@ model Result {
   athleteId         String?     @map("athlete_id")
   teamId            String?     @map("team_id")
   opponentAthleteId String?     @map("opponent_athlete_id")
+  opponentTeamName  String?     @map("opponent_team_name")
   rank              Int?
-  score             String?
+  seedRank          Int?        @map("seed_rank")
+  poolRank          Int?        @map("pool_rank")
+  scoreFor          Int?        @map("score_for")
+  scoreAgainst      Int?        @map("score_against")
   round             String?
   won               Boolean?
+  observations      String?
   competition       Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   athlete           Athlete?    @relation("ResultAthlete", fields: [athleteId], references: [id], onDelete: SetNull)
   team              Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)

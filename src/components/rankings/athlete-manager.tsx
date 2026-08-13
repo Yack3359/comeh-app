@@ -4,6 +4,7 @@ import {
   Pencil,
   PlusCircle,
   Save,
+  Swords,
   Tags,
   Trash2,
   X,
@@ -54,6 +55,7 @@ type AthleteManagerProps = {
   canManage: boolean;
   version: number;
   onChanged: () => void;
+  onViewStats?: (athleteId: string) => void;
 };
 
 type AthleteForm = {
@@ -77,7 +79,7 @@ type AthleteForm = {
 const emptyForm: AthleteForm = {
   firstName: "",
   lastName: "",
-  gender: "FEMALE",
+  gender: "MALE",
   country: "",
   handedness: "RIGHT_HANDED",
   gripType: "CROSS",
@@ -91,6 +93,7 @@ export function AthleteManager({
   canManage,
   version,
   onChanged,
+  onViewStats,
 }: AthleteManagerProps) {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [form, setForm] = useState<AthleteForm>(emptyForm);
@@ -313,24 +316,12 @@ export function AthleteManager({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="athlete-gender">Genre</Label>
-                  <Select
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        gender: value as AthleteForm["gender"],
-                      }))
-                    }
-                    value={form.gender}
-                  >
+                  <Select disabled value="MALE">
                     <SelectTrigger id="athlete-gender">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(genderLabels).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="MALE">{genderLabels.MALE}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -546,6 +537,17 @@ export function AthleteManager({
                       >
                         <Tags className="h-4 w-4" />
                       </Button>
+                      {onViewStats ? (
+                        <Button
+                          aria-label={`Voir les stats adversaires de ${athleteName(athlete)}`}
+                          onClick={() => onViewStats(athlete.id)}
+                          size="icon"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Swords className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                       {canManage ? (
                         <>
                           <Button

@@ -8,6 +8,7 @@ import {
   RefreshCw,
   TrendingDown,
   Users,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   fencingCategoryLabels,
   fencingCategoryStyles,
+  type FencingCategoryValue,
 } from "@/components/fencing-category";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +36,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import type { TrackingData } from "./types";
+import type { Expense, TrackingData } from "./types";
 import { formatCurrency, formatDate, requestJson } from "./utils";
 
 type BudgetTrackingProps = {
@@ -82,6 +84,24 @@ export function BudgetTracking({
   const [tracking, setTracking] = useState<TrackingData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detailCategory, setDetailCategory] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [detailExpenses, setDetailExpenses] = useState<Expense[]>([]);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [fencingDetail, setFencingDetail] = useState<{
+    fencingCategory: FencingCategoryValue;
+    rows: Array<{
+      id: string;
+      name: string;
+      planned: number;
+      spent: number;
+      remaining: number;
+      percentage: number;
+    }>;
+  } | null>(null);
+  const [isFencingDetailLoading, setIsFencingDetailLoading] = useState(false);
 
   const loadTracking = useCallback(async () => {
     if (!seasonId) {
@@ -110,6 +130,43 @@ export function BudgetTracking({
   useEffect(() => {
     void loadTracking();
   }, [dataVersion, loadTracking]);
+
+  async function openCategoryDetail(category: { id: string; name: string }) {
+    setDetailCategory(category);
+    setIsDetailLoading(true);
+    setDetailExpenses([]);
+    try {
+      const params = new URLSearchParams({ seasonId, categoryId: category.id });
+      setDetailExpenses(await requestJson<Expense[]>(`/api/expenses?${params}`));
+    } catch {
+      setDetailExpenses([]);
+    } finally {
+      setIsDetailLoading(false);
+    }
+  }
+
+  async function openFencingCategoryDetail(fencingCategory: FencingCategoryValue) {
+    setFencingDetail({ fencingCategory, rows: [] });
+    setIsFencingDetailLoading(true);
+    try {
+      const params = new URLSearchParams({ seasonId, fencingCategory });
+      const rows = await requestJson<
+        Array<{
+          id: string;
+          name: string;
+          planned: number;
+          spent: number;
+          remaining: number;
+          percentage: number;
+        }>
+      >(`/api/budget-tracking/category-detail?${params}`);
+      setFencingDetail({ fencingCategory, rows });
+    } catch {
+      setFencingDetail({ fencingCategory, rows: [] });
+    } finally {
+      setIsFencingDetailLoading(false);
+    }
+  }
 
   if (error) {
     return (
@@ -233,8 +290,17 @@ export function BudgetTracking({
 
               return (
                 <div
-                  className={cn("rounded-lg border p-5", styles.card)}
+                  className={cn(
+                    "rounded-lg border p-5",
+                    styles.card,
+                    row.fencingCategory ? "cursor-pointer hover:shadow-sm" : "",
+                  )}
                   key={row.fencingCategory ?? "NONE"}
+                  onClick={
+                    row.fencingCategory
+                      ? () => void openFencingCategoryDetail(row.fencingCategory!)
+                      : undefined
+                  }
                 >
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <Badge className={styles.badge} variant="outline">
@@ -388,8 +454,14 @@ export function BudgetTracking({
             </TableHeader>
             <TableBody>
               {tracking.categories.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-medium">{row.name}</TableCell>
+                <TableRow
+                  className="cursor-pointer hover:bg-slate-50"
+                  key={row.id}
+                  onClick={() => void openCategoryDetail(row)}
+                >
+                  <TableCell className="font-medium text-primary underline-offset-2 hover:underline">
+                    {row.name}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCurrency(row.planned)}
                   </TableCell>
@@ -423,6 +495,172 @@ export function BudgetTracking({
           </Table>
         </CardContent>
       </Card>
+
+      {detailCategory ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => setDetailCategory(null)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-institutional"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-primary">
+                  Dépenses — {detailCategory.name}
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Détail des frais rattachés à cette catégorie pour la saison.
+                </p>
+              </div>
+              <Button
+                aria-label="Fermer"
+                onClick={() => setDetailCategory(null)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {isDetailLoading ? (
+              <p className="py-8 text-center text-sm text-slate-500">
+                Chargement…
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Détail</TableHead>
+                    <TableHead>Catégorie de tireur</TableHead>
+                    <TableHead className="text-right">Montant</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {detailExpenses.map((expense) => (
+                    <TableRow key={expense.id}>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDate(expense.date)}
+                      </TableCell>
+                      <TableCell>
+                        <p className="font-medium text-slate-900">
+                          {expense.competition?.name ?? expense.description}
+                        </p>
+                        {expense.competition ? (
+                          <p className="text-xs text-slate-500">
+                            {expense.description}
+                          </p>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        {expense.fencingCategory
+                          ? fencingCategoryLabels[expense.fencingCategory]
+                          : "Non spécifiée"}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatCurrency(expense.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {detailExpenses.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        className="py-8 text-center text-slate-500"
+                        colSpan={4}
+                      >
+                        Aucune dépense pour cette catégorie.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {fencingDetail ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => setFencingDetail(null)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-institutional"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-primary">
+                  Détail par catégorie de dépense —{" "}
+                  {fencingCategoryLabels[fencingDetail.fencingCategory]}
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Prévu, dépensé et reste pour chaque catégorie de dépense,
+                  pour cette catégorie de tireur.
+                </p>
+              </div>
+              <Button
+                aria-label="Fermer"
+                onClick={() => setFencingDetail(null)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {isFencingDetailLoading ? (
+              <p className="py-8 text-center text-sm text-slate-500">
+                Chargement…
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Catégorie de dépense</TableHead>
+                    <TableHead className="text-right">Prévu</TableHead>
+                    <TableHead className="text-right">Dépensé</TableHead>
+                    <TableHead className="text-right">Reste</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {fencingDetail.rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">{row.name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(row.planned)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(row.spent)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-medium tabular-nums",
+                          row.remaining < 0 ? "text-accent" : "text-emerald-700",
+                        )}
+                      >
+                        {formatCurrency(row.remaining)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {fencingDetail.rows.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        className="py-8 text-center text-slate-500"
+                        colSpan={4}
+                      >
+                        Aucun budget ni dépense pour cette catégorie de tireur.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

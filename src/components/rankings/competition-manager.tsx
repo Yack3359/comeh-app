@@ -3,6 +3,7 @@
 import { Pencil, PlusCircle, Save, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -61,6 +62,7 @@ type CompetitionForm = {
   weapon: WeaponValue | "NONE";
   gender: GenderValue | "NONE";
   category: FencingCategoryValue | "NONE";
+  isSelective: boolean;
 };
 
 const emptyForm: CompetitionForm = {
@@ -69,9 +71,10 @@ const emptyForm: CompetitionForm = {
   country: "",
   date: "",
   level: "",
-  weapon: "NONE",
-  gender: "NONE",
+  weapon: "EPEE",
+  gender: "MALE",
   category: "NONE",
+  isSelective: false,
 };
 
 export function CompetitionManager({
@@ -190,9 +193,10 @@ export function CompetitionManager({
       country: competition.country,
       date: competition.date.slice(0, 10),
       level: competition.level,
-      weapon: competition.weapon ?? "NONE",
-      gender: competition.gender ?? "NONE",
+      weapon: competition.weapon ?? "EPEE",
+      gender: competition.gender ?? "MALE",
       category: competition.category ?? "NONE",
+      isSelective: competition.isSelective,
     });
   }
 
@@ -290,60 +294,24 @@ export function CompetitionManager({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="competition-weapon">
-                    Arme{" "}
-                    <span className="font-normal text-slate-400">
-                      (facultatif)
-                    </span>
-                  </Label>
-                  <Select
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        weapon: value as CompetitionForm["weapon"],
-                      }))
-                    }
-                    value={form.weapon}
-                  >
+                  <Label htmlFor="competition-weapon">Arme</Label>
+                  <Select disabled value="EPEE">
                     <SelectTrigger id="competition-weapon">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="NONE">Non renseignée</SelectItem>
-                      {Object.entries(weaponLabels).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="EPEE">{weaponLabels.EPEE}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="competition-gender">
-                    Sexe{" "}
-                    <span className="font-normal text-slate-400">
-                      (facultatif)
-                    </span>
-                  </Label>
-                  <Select
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        gender: value as CompetitionForm["gender"],
-                      }))
-                    }
-                    value={form.gender}
-                  >
+                  <Label htmlFor="competition-gender">Sexe</Label>
+                  <Select disabled value="MALE">
                     <SelectTrigger id="competition-gender">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="NONE">Non renseigné</SelectItem>
-                      {Object.entries(genderLabels).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="MALE">{genderLabels.MALE}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -377,6 +345,23 @@ export function CompetitionManager({
                       )}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="flex items-center gap-2 pt-6">
+                  <input
+                    checked={form.isSelective}
+                    className="h-4 w-4 rounded border-input"
+                    id="competition-selective"
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        isSelective: event.target.checked,
+                      }))
+                    }
+                    type="checkbox"
+                  />
+                  <Label className="cursor-pointer" htmlFor="competition-selective">
+                    Compétition sélective
+                  </Label>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -423,6 +408,7 @@ export function CompetitionManager({
                 <TableHead>Compétition</TableHead>
                 <TableHead>Niveau</TableHead>
                 <TableHead>Épreuve</TableHead>
+                <TableHead>Sélective</TableHead>
                 <TableHead>Résultats</TableHead>
                 {canManage ? <TableHead className="text-right">Actions</TableHead> : null}
               </TableRow>
@@ -456,6 +442,15 @@ export function CompetitionManager({
                         : "Catégorie non renseignée"}
                     </p>
                   </TableCell>
+                  <TableCell>
+                    {competition.isSelective ? (
+                      <Badge className="border-accent/30 bg-accent-50 text-accent-700" variant="outline">
+                        Sélective
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>{competition._count.results}</TableCell>
                   {canManage ? (
                     <TableCell>
@@ -487,7 +482,7 @@ export function CompetitionManager({
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-slate-500"
-                    colSpan={canManage ? 6 : 5}
+                    colSpan={canManage ? 7 : 6}
                   >
                     Aucune compétition pour cette saison.
                   </TableCell>

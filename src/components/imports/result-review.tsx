@@ -36,8 +36,11 @@ type ResultDraft = {
   athleteId: string;
   opponentAthleteId: string;
   rank: string;
+  seedRank: string;
+  poolRank: string;
   won: WonValue;
-  score: string;
+  scoreFor: string;
+  scoreAgainst: string;
   round: string;
   athleteHint: string;
   opponentHint: string;
@@ -83,8 +86,11 @@ function createDraft(value: unknown): ResultDraft {
     athleteId: "",
     opponentAthleteId: "",
     rank: textValue(row.rank),
+    seedRank: textValue(row.seedRank),
+    poolRank: textValue(row.poolRank),
     won,
-    score: textValue(row.score),
+    scoreFor: textValue(row.scoreFor),
+    scoreAgainst: textValue(row.scoreAgainst),
     round: textValue(row.round),
     athleteHint: textValue(row.athleteName),
     opponentHint,
@@ -220,10 +226,12 @@ export function ResultReview({
             data: {
               type: "bout",
               competitionId: draft.competitionId,
+              participantType: "athlete",
               athleteId: draft.athleteId,
               opponentAthleteId: draft.opponentAthleteId,
               won: draft.won === "true",
-              score: draft.score,
+              scoreFor: draft.scoreFor || null,
+              scoreAgainst: draft.scoreAgainst || null,
               round: draft.round,
             },
           };
@@ -243,8 +251,8 @@ export function ResultReview({
             athleteId: draft.athleteId,
             teamId: null,
             rank: draft.rank,
-            score: draft.score,
-            round: draft.round,
+            seedRank: draft.seedRank || null,
+            poolRank: draft.poolRank || null,
           },
         };
       });
@@ -458,7 +466,9 @@ export function ResultReview({
                 </>
               ) : (
                 <div className="space-y-2">
-                  <Label htmlFor={`${batchId}-rank-${index}`}>Rang</Label>
+                  <Label htmlFor={`${batchId}-rank-${index}`}>
+                    Classement final
+                  </Label>
                   <Input
                     id={`${batchId}-rank-${index}`}
                     min={1}
@@ -472,38 +482,101 @@ export function ResultReview({
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor={`${batchId}-score-${index}`}>
-                  Score{" "}
-                  <span className="font-normal text-slate-400">
-                    (facultatif)
-                  </span>
-                </Label>
-                <Input
-                  id={`${batchId}-score-${index}`}
-                  maxLength={80}
-                  onChange={(event) =>
-                    updateDraft(index, { score: event.target.value })
-                  }
-                  value={draft.score}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${batchId}-round-${index}`}>
-                  Tour{" "}
-                  <span className="font-normal text-slate-400">
-                    (facultatif)
-                  </span>
-                </Label>
-                <Input
-                  id={`${batchId}-round-${index}`}
-                  maxLength={80}
-                  onChange={(event) =>
-                    updateDraft(index, { round: event.target.value })
-                  }
-                  value={draft.round}
-                />
-              </div>
+              {draft.type === "bout" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor={`${batchId}-score-for-${index}`}>
+                      Score tireur{" "}
+                      <span className="font-normal text-slate-400">
+                        (facultatif)
+                      </span>
+                    </Label>
+                    <Input
+                      id={`${batchId}-score-for-${index}`}
+                      min={0}
+                      onChange={(event) =>
+                        updateDraft(index, { scoreFor: event.target.value })
+                      }
+                      type="number"
+                      value={draft.scoreFor}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`${batchId}-score-against-${index}`}>
+                      Score adversaire{" "}
+                      <span className="font-normal text-slate-400">
+                        (facultatif)
+                      </span>
+                    </Label>
+                    <Input
+                      id={`${batchId}-score-against-${index}`}
+                      min={0}
+                      onChange={(event) =>
+                        updateDraft(index, {
+                          scoreAgainst: event.target.value,
+                        })
+                      }
+                      type="number"
+                      value={draft.scoreAgainst}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor={`${batchId}-seed-rank-${index}`}>
+                      Classement initial{" "}
+                      <span className="font-normal text-slate-400">
+                        (facultatif)
+                      </span>
+                    </Label>
+                    <Input
+                      id={`${batchId}-seed-rank-${index}`}
+                      min={1}
+                      onChange={(event) =>
+                        updateDraft(index, { seedRank: event.target.value })
+                      }
+                      type="number"
+                      value={draft.seedRank}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`${batchId}-pool-rank-${index}`}>
+                      Classement poule{" "}
+                      <span className="font-normal text-slate-400">
+                        (facultatif)
+                      </span>
+                    </Label>
+                    <Input
+                      id={`${batchId}-pool-rank-${index}`}
+                      min={1}
+                      onChange={(event) =>
+                        updateDraft(index, { poolRank: event.target.value })
+                      }
+                      type="number"
+                      value={draft.poolRank}
+                    />
+                  </div>
+                </>
+              )}
+              {draft.type === "bout" ? (
+                <div className="space-y-2">
+                  <Label htmlFor={`${batchId}-round-${index}`}>
+                    Tour{" "}
+                    <span className="font-normal text-slate-400">
+                      (facultatif)
+                    </span>
+                  </Label>
+                  <Input
+                    id={`${batchId}-round-${index}`}
+                    maxLength={80}
+                    onChange={(event) =>
+                      updateDraft(index, { round: event.target.value })
+                    }
+                    value={draft.round}
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="flex justify-end">

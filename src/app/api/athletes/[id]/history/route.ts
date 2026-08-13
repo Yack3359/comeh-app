@@ -72,8 +72,8 @@ export async function GET(request: Request, context: RouteContext) {
             select: {
               id: true,
               rank: true,
-              score: true,
-              round: true,
+              seedRank: true,
+              poolRank: true,
               competition: {
                 select: {
                   id: true,

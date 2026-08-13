@@ -49,11 +49,16 @@ import {
 type OpponentStatsProps = {
   seasons: Season[];
   version: number;
+  initialAthleteId?: string;
 };
 
-export function OpponentStats({ seasons, version }: OpponentStatsProps) {
+export function OpponentStats({
+  seasons,
+  version,
+  initialAthleteId,
+}: OpponentStatsProps) {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [athleteId, setAthleteId] = useState("");
+  const [athleteId, setAthleteId] = useState(initialAthleteId ?? "");
   const [seasonId, setSeasonId] = useState("all");
   const [groupBy, setGroupBy] =
     useState<keyof typeof groupByLabels>("country");
@@ -70,14 +75,20 @@ export function OpponentStats({ seasons, version }: OpponentStatsProps) {
     void requestJson<Athlete[]>("/api/athletes")
       .then((data) => {
         setAthletes(data);
-        setAthleteId((current) => current || data[0]?.id || "");
+        setAthleteId((current) => current || initialAthleteId || data[0]?.id || "");
       })
       .catch((loadError: unknown) => {
         setError(
           loadError instanceof Error ? loadError.message : "Chargement impossible",
         );
       });
-  }, [version]);
+  }, [version, initialAthleteId]);
+
+  useEffect(() => {
+    if (initialAthleteId) {
+      setAthleteId(initialAthleteId);
+    }
+  }, [initialAthleteId]);
 
   const countries = useMemo(
     () =>

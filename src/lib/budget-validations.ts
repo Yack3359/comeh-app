@@ -1,4 +1,4 @@
-import { ExpenseType, FencingCategory } from "@prisma/client";
+import { FencingCategory } from "@prisma/client";
 import { z } from "zod";
 
 const idSchema = z.string().trim().min(1, "Identifiant requis").max(64);
@@ -31,7 +31,7 @@ export const budgetUpdateSchema = z
       .array(
         z.object({
           categoryId: idSchema,
-          fencingCategory: z.nativeEnum(FencingCategory).nullable(),
+          fencingCategory: z.nativeEnum(FencingCategory),
           plannedAmount: amountSchema,
         }),
       )
@@ -41,7 +41,7 @@ export const budgetUpdateSchema = z
     const budgetKeys = new Set<string>();
 
     budgets.forEach(({ categoryId, fencingCategory }, index) => {
-      const key = `${categoryId}:${fencingCategory ?? "ALL"}`;
+      const key = `${categoryId}:${fencingCategory}`;
       if (budgetKeys.has(key)) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
@@ -58,7 +58,7 @@ export const expenseCreateSchema = z.object({
   seasonId: idSchema,
   categoryId: idSchema,
   fencingCategory: z.nativeEnum(FencingCategory).nullable().optional().default(null),
-  type: z.nativeEnum(ExpenseType),
+  competitionId: idSchema.nullable().optional().default(null),
   amount: amountSchema.refine((value) => Number(value) > 0, "Le montant doit être positif"),
   date: z
     .string()
@@ -71,7 +71,6 @@ export const expenseCreateSchema = z.object({
       );
     }, "Date invalide"),
   description: z.string().trim().min(2, "La description est trop courte").max(500),
-  relatedEvent: z.string().trim().max(160).optional().default(""),
 });
 
 export const expenseQuerySchema = z.object({
@@ -80,5 +79,5 @@ export const expenseQuerySchema = z.object({
   fencingCategory: z
     .union([z.nativeEnum(FencingCategory), z.literal("NONE")])
     .optional(),
-  type: z.nativeEnum(ExpenseType).optional(),
+  competitionId: idSchema.optional(),
 });

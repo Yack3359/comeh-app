@@ -12,13 +12,23 @@ export function toResultData(
   if (input.type === "bout") {
     return {
       competitionId: input.competitionId,
-      athleteId: input.athleteId,
-      teamId: null,
-      opponentAthleteId: input.opponentAthleteId,
+      athleteId:
+        input.participantType === "athlete" ? (input.athleteId ?? null) : null,
+      teamId: input.participantType === "team" ? (input.teamId ?? null) : null,
+      opponentAthleteId:
+        input.participantType === "athlete"
+          ? (input.opponentAthleteId ?? null)
+          : null,
+      opponentTeamName:
+        input.participantType === "team" ? (input.opponentTeamName ?? null) : null,
       rank: null,
+      seedRank: null,
+      poolRank: null,
       won: input.won,
-      score: input.score,
+      scoreFor: input.scoreFor,
+      scoreAgainst: input.scoreAgainst,
       round: input.round,
+      observations: input.observations,
     };
   }
 
@@ -28,10 +38,15 @@ export function toResultData(
       input.participantType === "athlete" ? (input.athleteId ?? null) : null,
     teamId: input.participantType === "team" ? (input.teamId ?? null) : null,
     opponentAthleteId: null,
+    opponentTeamName: null,
     rank: input.rank,
+    seedRank: input.seedRank,
+    poolRank: input.poolRank,
     won: null,
-    score: input.score,
-    round: input.round,
+    scoreFor: null,
+    scoreAgainst: null,
+    round: null,
+    observations: input.observations,
   };
 }
 
@@ -44,19 +59,17 @@ export async function validateResultRelations(input: ResultInput) {
     return "invalid_competition" as const;
   }
 
-  if (input.type === "bout") {
-    const athletes = await prisma.athlete.count({
-      where: { id: { in: [input.athleteId, input.opponentAthleteId] } },
-    });
-    return athletes === 2 ? ("valid" as const) : ("invalid_athletes" as const);
-  }
-
   if (input.participantType === "athlete") {
-    const athlete = await prisma.athlete.findUnique({
-      where: { id: input.athleteId! },
-      select: { id: true },
+    const athleteIds = [input.athleteId, ...(input.type === "bout" ? [input.opponentAthleteId] : [])].filter(
+      (id): id is string => Boolean(id),
+    );
+    const expectedCount = input.type === "bout" ? 2 : 1;
+    const athletes = await prisma.athlete.count({
+      where: { id: { in: athleteIds } },
     });
-    return athlete ? ("valid" as const) : ("invalid_athletes" as const);
+    return athletes === expectedCount
+      ? ("valid" as const)
+      : ("invalid_athletes" as const);
   }
 
   const team = await prisma.team.findUnique({

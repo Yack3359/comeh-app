@@ -1,8 +1,3 @@
-export const expenseTypeLabels = {
-  ACCOMMODATION: "Hébergement",
-  TRAVEL: "Déplacement",
-} as const;
-
 export function formatCurrency(value: number | string) {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",

@@ -56,10 +56,15 @@ export async function GET(request: Request) {
           athleteId: true,
           teamId: true,
           opponentAthleteId: true,
+          opponentTeamName: true,
           rank: true,
-          score: true,
+          seedRank: true,
+          poolRank: true,
+          scoreFor: true,
+          scoreAgainst: true,
           round: true,
           won: true,
+          observations: true,
           competition: {
             select: {
               name: true,
@@ -85,7 +90,7 @@ export async function GET(request: Request) {
 
       return results.map((item) => ({
         ...item,
-        type: item.opponentAthleteId ? ("bout" as const) : ("ranking" as const),
+        type: item.rank !== null ? ("ranking" as const) : ("bout" as const),
         participantType: item.teamId ? ("team" as const) : ("athlete" as const),
       }));
     });

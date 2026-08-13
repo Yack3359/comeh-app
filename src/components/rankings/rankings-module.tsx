@@ -4,6 +4,7 @@ import {
   CalendarRange,
   Eye,
   Medal,
+  Rows3,
   Swords,
   UsersRound,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import {
 
 import { AthleteHistory } from "./athlete-history";
 import { AthleteManager } from "./athlete-manager";
+import { BulkResultEntry } from "./bulk-result-entry";
 import { CompetitionManager } from "./competition-manager";
 import { OpponentStats } from "./opponent-stats";
 import { ResultManager } from "./result-manager";
@@ -43,6 +45,13 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
   const [seasonId, setSeasonId] = useState("");
   const [dataVersion, setDataVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("athletes");
+  const [statsAthleteId, setStatsAthleteId] = useState<string | undefined>();
+
+  function viewAthleteStats(athleteId: string) {
+    setStatsAthleteId(athleteId);
+    setActiveTab("stats");
+  }
 
   useEffect(() => {
     void requestJson<Season[]>("/api/seasons")
@@ -138,12 +147,16 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
           initial du projet.
         </div>
       ) : (
-        <Tabs defaultValue="athletes">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4 xl:grid-cols-7">
+        <Tabs onValueChange={setActiveTab} value={activeTab}>
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4 xl:grid-cols-8">
             <TabsTrigger value="athletes">Athlètes</TabsTrigger>
             <TabsTrigger value="teams">Équipes</TabsTrigger>
             <TabsTrigger value="competitions">Compétitions</TabsTrigger>
             <TabsTrigger value="results">Résultats</TabsTrigger>
+            <TabsTrigger value="bulk-entry">
+              <Rows3 className="mr-1.5 h-4 w-4" />
+              Saisie rapide
+            </TabsTrigger>
             <TabsTrigger value="stats">
               <Swords className="mr-1.5 h-4 w-4" />
               Stats adversaires
@@ -162,6 +175,7 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
             <AthleteManager
               canManage={canManage}
               onChanged={() => setDataVersion((current) => current + 1)}
+              onViewStats={viewAthleteStats}
               seasons={seasons}
               version={dataVersion}
             />
@@ -191,8 +205,20 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
               version={dataVersion}
             />
           </TabsContent>
+          <TabsContent className="mt-5" value="bulk-entry">
+            <BulkResultEntry
+              canManage={canManage}
+              onChanged={() => setDataVersion((current) => current + 1)}
+              seasonId={seasonId}
+              version={dataVersion}
+            />
+          </TabsContent>
           <TabsContent className="mt-5" value="stats">
-            <OpponentStats seasons={seasons} version={dataVersion} />
+            <OpponentStats
+              initialAthleteId={statsAthleteId}
+              seasons={seasons}
+              version={dataVersion}
+            />
           </TabsContent>
           <TabsContent className="mt-5" value="history">
             <AthleteHistory version={dataVersion} />

@@ -138,73 +138,110 @@ export function AthleteHistory({ version }: AthleteHistoryProps) {
         </p>
       ) : null}
 
-      {history?.seasons.map((season, index) => (
-        <Card className="overflow-hidden" key={season.id}>
-          <div className="border-l-4 border-primary">
-            <CardHeader>
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <CalendarRange className="h-5 w-5 text-primary" />
-                    Saison {season.label}
-                  </CardTitle>
-                  <CardDescription>
-                    {formatDate(season.startDate)} – {formatDate(season.endDate)}
-                  </CardDescription>
+      {history?.seasons.map((season, index) => {
+        const rankings = season.rankings;
+        const averageRank =
+          rankings.length > 0
+            ? rankings.reduce((sum, item) => sum + item.rank, 0) /
+              rankings.length
+            : null;
+        const poolRankings = rankings.filter(
+          (item): item is typeof item & { poolRank: number } =>
+            item.poolRank !== null,
+        );
+        const averagePoolRank =
+          poolRankings.length > 0
+            ? poolRankings.reduce((sum, item) => sum + item.poolRank, 0) /
+              poolRankings.length
+            : null;
+
+        return (
+          <Card className="overflow-hidden" key={season.id}>
+            <div className="border-l-4 border-primary">
+              <CardHeader>
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <CalendarRange className="h-5 w-5 text-primary" />
+                      Saison {season.label}
+                    </CardTitle>
+                    <CardDescription>
+                      {formatDate(season.startDate)} –{" "}
+                      {formatDate(season.endDate)}
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {index === 0 ? <Badge>Saison la plus récente</Badge> : null}
+                    <Badge variant="outline">
+                      {season.category
+                        ? formatFencingCategory(season.category)
+                        : "Catégorie non renseignée"}
+                    </Badge>
+                    {averageRank !== null ? (
+                      <Badge className="border-primary/20 bg-primary-50 text-primary" variant="outline">
+                        Classement moyen : {averageRank.toFixed(1)}
+                      </Badge>
+                    ) : null}
+                    {averagePoolRank !== null ? (
+                      <Badge variant="outline">
+                        Poule moyenne : {averagePoolRank.toFixed(1)}
+                      </Badge>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {index === 0 ? <Badge>Saison la plus récente</Badge> : null}
-                  <Badge variant="outline">
-                    {season.category
-                      ? formatFencingCategory(season.category)
-                      : "Catégorie non renseignée"}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Compétition</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Niveau</TableHead>
-                    <TableHead className="text-right">Classement</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {season.rankings.map((ranking) => (
-                    <TableRow key={ranking.id}>
-                      <TableCell className="font-medium">
-                        {ranking.competition.name}
-                      </TableCell>
-                      <TableCell>{formatDate(ranking.competition.date)}</TableCell>
-                      <TableCell>{ranking.competition.level}</TableCell>
-                      <TableCell className="text-right">
-                        <span className="inline-flex items-center gap-1 font-bold text-primary">
-                          <Medal className="h-4 w-4" />
-                          {ranking.rank}
-                          {ranking.rank === 1 ? "er" : "e"}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {season.rankings.length === 0 ? (
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell
-                        className="py-8 text-center text-slate-500"
-                        colSpan={4}
-                      >
-                        Aucun classement final pour cette saison.
-                      </TableCell>
+                      <TableHead>Compétition</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Niveau</TableHead>
+                      <TableHead className="text-right">Classt. initial</TableHead>
+                      <TableHead className="text-right">Classt. poule</TableHead>
+                      <TableHead className="text-right">Classement final</TableHead>
                     </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </div>
-        </Card>
-      ))}
+                  </TableHeader>
+                  <TableBody>
+                    {rankings.map((ranking) => (
+                      <TableRow key={ranking.id}>
+                        <TableCell className="font-medium">
+                          {ranking.competition.name}
+                        </TableCell>
+                        <TableCell>{formatDate(ranking.competition.date)}</TableCell>
+                        <TableCell>{ranking.competition.level}</TableCell>
+                        <TableCell className="text-right tabular-nums text-slate-500">
+                          {ranking.seedRank ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-slate-500">
+                          {ranking.poolRank ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="inline-flex items-center gap-1 font-bold text-primary">
+                            <Medal className="h-4 w-4" />
+                            {ranking.rank}
+                            {ranking.rank === 1 ? "er" : "e"}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {rankings.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          className="py-8 text-center text-slate-500"
+                          colSpan={6}
+                        >
+                          Aucun classement final pour cette saison.
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </div>
+          </Card>
+        );
+      })}
 
       {history && history.seasons.length === 0 ? (
         <Card>

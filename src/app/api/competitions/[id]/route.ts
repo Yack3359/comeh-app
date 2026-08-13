@@ -71,6 +71,7 @@ export async function PATCH(request: Request, context: RouteContext) {
             weapon: true,
             gender: true,
             category: true,
+            isSelective: true,
           },
         });
         return { status: "updated" as const, competition };

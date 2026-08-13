@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     default: "COMEH",
     template: "%s | COMEH",
   },
-  description: "Outil de gestion de la Commission Escrime Handisport",
+  description: "Outil de gestion de la COMmission Épée Homme",
 };
 
 export default function RootLayout({

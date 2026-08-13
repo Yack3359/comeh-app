@@ -20,7 +20,6 @@ import {
   toResultData,
   validateResultRelations,
 } from "@/lib/ranking-results";
-import { serializeExpenseDescription } from "@/lib/expense-description";
 import { prisma } from "@/lib/prisma";
 
 const writeRoles = [Role.ADMIN, Role.COMEH_MEMBER] as const;
@@ -149,6 +148,26 @@ export async function POST(request: Request, context: RouteContext) {
             categories.map((category) => category.id),
           );
 
+          const competitionIds = [
+            ...new Set(
+              parsedBody.data.rows
+                .map(({ data }) => data.competitionId)
+                .filter((competitionId): competitionId is string =>
+                  Boolean(competitionId),
+                ),
+            ),
+          ];
+          const validCompetitionIds = new Set(
+            competitionIds.length > 0
+              ? (
+                  await prisma.competition.findMany({
+                    where: { id: { in: competitionIds }, seasonId: season.id },
+                    select: { id: true },
+                  })
+                ).map((competition) => competition.id)
+              : [],
+          );
+
           for (const row of parsedBody.data.rows) {
             if (row.data.seasonId !== season.id) {
               return {
@@ -162,6 +181,16 @@ export async function POST(request: Request, context: RouteContext) {
                 status: "error" as const,
                 httpStatus: 400,
                 message: `La catégorie de la ligne ${row.index + 1} est invalide`,
+              };
+            }
+            if (
+              row.data.competitionId &&
+              !validCompetitionIds.has(row.data.competitionId)
+            ) {
+              return {
+                status: "error" as const,
+                httpStatus: 400,
+                message: `La compétition de la ligne ${row.index + 1} est invalide`,
               };
             }
 
@@ -254,13 +283,11 @@ export async function POST(request: Request, context: RouteContext) {
                   data: {
                     seasonId: row.data.seasonId,
                     categoryId: row.data.categoryId,
-                    type: row.data.type,
+                    fencingCategory: row.data.fencingCategory,
+                    competitionId: row.data.competitionId,
                     amount: row.data.amount,
                     date: new Date(`${row.data.date}T00:00:00.000Z`),
-                    description: serializeExpenseDescription(
-                      row.data.description,
-                      row.data.relatedEvent,
-                    ),
+                    description: row.data.description,
                     createdById: userId,
                     source: ExpenseSource.IMPORT,
                     attachmentUrl: batch.fileUrl,

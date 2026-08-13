@@ -170,7 +170,7 @@ export function Dashboard({ canImport }: DashboardProps) {
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-blue-100">
-                FF Escrime · Commission Handisport
+                FF Escrime · COMmission Épée Homme
               </p>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                 Tableau de bord COMEH
@@ -417,7 +417,7 @@ export function Dashboard({ canImport }: DashboardProps) {
                   <Link href="/imports">
                     <span className="flex items-center gap-2">
                       <FileUp className="h-4 w-4" />
-                      Import IA
+                      Import
                     </span>
                     <ArrowRight className="h-4 w-4" />
                   </Link>

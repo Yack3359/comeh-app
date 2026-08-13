@@ -88,6 +88,17 @@ export const teamCreateSchema = z.object({
 
 export const teamUpdateSchema = teamCreateSchema;
 
+export const teamMemberCreateSchema = z.object({
+  athleteId: rankingIdSchema,
+  bibNumber: z.coerce
+    .number()
+    .int()
+    .min(1, "Le numéro doit être positif")
+    .max(999)
+    .nullable()
+    .optional(),
+});
+
 export const seasonFilterSchema = z.object({
   seasonId: rankingIdSchema.optional(),
 });
@@ -102,10 +113,22 @@ export const competitionCreateSchema = z.object({
   weapon: z.nativeEnum(Weapon).nullable().optional(),
   gender: z.nativeEnum(Gender).nullable().optional(),
   category: z.nativeEnum(FencingCategory).nullable().optional(),
+  isSelective: z.boolean().optional().default(false),
 });
 
 export const competitionUpdateSchema = competitionCreateSchema;
 
+const scoreValueSchema = z.coerce
+  .number()
+  .int()
+  .min(0, "Le score doit être positif")
+  .max(999, "Score invalide")
+  .nullable()
+  .optional();
+
+// Classement (rang final, classement initial, classement de poule) : jamais
+// de score ni d'adversaire ici, ces informations vivent désormais sur les
+// résultats de poule/tableau (type "bout").
 const rankingResultSchema = z.object({
   type: z.literal("ranking"),
   competitionId: rankingIdSchema,
@@ -113,44 +136,81 @@ const rankingResultSchema = z.object({
   athleteId: rankingIdSchema.nullable().optional(),
   teamId: rankingIdSchema.nullable().optional(),
   rank: z.coerce.number().int().min(1, "Le rang doit être positif").max(10000),
-  score: optionalText(80),
-  round: optionalText(80),
+  seedRank: z.coerce
+    .number()
+    .int()
+    .min(1, "Le classement initial doit être positif")
+    .max(10000)
+    .nullable()
+    .optional(),
+  poolRank: z.coerce
+    .number()
+    .int()
+    .min(1, "Le classement de poule doit être positif")
+    .max(1000)
+    .nullable()
+    .optional(),
+  observations: optionalText(5000),
 });
 
+// Résultat unitaire de poule ou de tableau : un adversaire (athlète, ou nom
+// d'équipe libre pour les compétitions par équipe face à une nation), un
+// score à 2 cases (un par tireur/équipe) et le tour concerné.
 const boutResultSchema = z.object({
   type: z.literal("bout"),
   competitionId: rankingIdSchema,
-  athleteId: rankingIdSchema,
-  opponentAthleteId: rankingIdSchema,
-  won: z.boolean(),
-  score: optionalText(80),
+  participantType: z.enum(["athlete", "team"]),
+  athleteId: rankingIdSchema.nullable().optional(),
+  teamId: rankingIdSchema.nullable().optional(),
+  opponentAthleteId: rankingIdSchema.nullable().optional(),
+  opponentTeamName: optionalText(160),
+  scoreFor: scoreValueSchema,
+  scoreAgainst: scoreValueSchema,
   round: optionalText(80),
+  won: z.boolean(),
+  observations: optionalText(5000),
 });
 
 export const resultCreateSchema = z
   .discriminatedUnion("type", [rankingResultSchema, boutResultSchema])
   .superRefine((value, context) => {
-    if (value.type === "ranking") {
-      if (value.participantType === "athlete" && !value.athleteId) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Athlète requis",
-          path: ["athleteId"],
-        });
-      }
-      if (value.participantType === "team" && !value.teamId) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Équipe requise",
-          path: ["teamId"],
-        });
-      }
-    } else if (value.athleteId === value.opponentAthleteId) {
+    if (value.participantType === "athlete" && !value.athleteId) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "L’athlète et son adversaire doivent être différents",
-        path: ["opponentAthleteId"],
+        message: "Athlète requis",
+        path: ["athleteId"],
       });
+    }
+    if (value.participantType === "team" && !value.teamId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Équipe requise",
+        path: ["teamId"],
+      });
+    }
+
+    if (value.type === "bout") {
+      if (value.participantType === "athlete") {
+        if (!value.opponentAthleteId) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Adversaire requis",
+            path: ["opponentAthleteId"],
+          });
+        } else if (value.athleteId === value.opponentAthleteId) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "L’athlète et son adversaire doivent être différents",
+            path: ["opponentAthleteId"],
+          });
+        }
+      } else if (!value.opponentTeamName) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Équipe adverse requise",
+          path: ["opponentTeamName"],
+        });
+      }
     }
   });
 

@@ -44,7 +44,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="p-7 sm:p-9">
           <div className="mb-8">
             <div className="mb-5 grid h-12 w-12 place-items-center rounded-xl bg-primary text-sm font-black text-primary-foreground">
-              CE
+              EH
             </div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">
               Espace sécurisé
@@ -53,7 +53,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               Connexion COMEH
             </h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Accédez à l’outil de la Commission Escrime Handisport.
+              Accédez à l’outil de la COMmission Épée Homme.
             </p>
           </div>
 

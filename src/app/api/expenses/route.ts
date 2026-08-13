@@ -7,10 +7,6 @@ import {
   expenseCreateSchema,
   expenseQuerySchema,
 } from "@/lib/budget-validations";
-import {
-  parseExpenseDescription,
-  serializeExpenseDescription,
-} from "@/lib/expense-description";
 import { prisma } from "@/lib/prisma";
 
 const writeRoles = [Role.ADMIN, Role.COMEH_MEMBER] as const;
@@ -32,11 +28,11 @@ export async function GET(request: Request) {
         where: {
           seasonId: parsedQuery.data.seasonId,
           categoryId: parsedQuery.data.categoryId,
+          competitionId: parsedQuery.data.competitionId,
           fencingCategory:
             parsedQuery.data.fencingCategory === "NONE"
               ? null
               : parsedQuery.data.fencingCategory,
-          type: parsedQuery.data.type,
         },
         orderBy: [{ date: "desc" }, { id: "desc" }],
         select: {
@@ -44,16 +40,20 @@ export async function GET(request: Request) {
           seasonId: true,
           categoryId: true,
           fencingCategory: true,
-          type: true,
           amount: true,
           date: true,
           description: true,
           source: true,
+          attachmentUrl: true,
+          competitionId: true,
           category: {
             select: { name: true },
           },
           season: {
             select: { label: true },
+          },
+          competition: {
+            select: { id: true, name: true, location: true, date: true },
           },
           createdBy: {
             select: { name: true },
@@ -64,7 +64,6 @@ export async function GET(request: Request) {
       return expenses.map((expense) => ({
         ...expense,
         amount: expense.amount.toString(),
-        ...parseExpenseDescription(expense.description),
       }));
     });
 
@@ -92,7 +91,7 @@ export async function POST(request: Request) {
   try {
     const result = await runAsAuthenticatedUser(
       async (userId) => {
-        const [season, category] = await Promise.all([
+        const [season, category, competition] = await Promise.all([
           prisma.season.findUnique({
             where: { id: parsedBody.data.seasonId },
             select: {
@@ -108,10 +107,23 @@ export async function POST(request: Request) {
               seasonId: true,
             },
           }),
+          parsedBody.data.competitionId
+            ? prisma.competition.findUnique({
+                where: { id: parsedBody.data.competitionId },
+                select: { id: true, seasonId: true },
+              })
+            : Promise.resolve(null),
         ]);
 
         if (!season || !category || category.seasonId !== season.id) {
           return { status: "invalid_relation" as const };
+        }
+
+        if (
+          parsedBody.data.competitionId &&
+          (!competition || competition.seasonId !== season.id)
+        ) {
+          return { status: "invalid_competition" as const };
         }
 
         const expenseDate = new Date(`${parsedBody.data.date}T00:00:00.000Z`);
@@ -124,13 +136,10 @@ export async function POST(request: Request) {
             seasonId: season.id,
             categoryId: category.id,
             fencingCategory: parsedBody.data.fencingCategory,
-            type: parsedBody.data.type,
+            competitionId: parsedBody.data.competitionId,
             amount: parsedBody.data.amount,
             date: expenseDate,
-            description: serializeExpenseDescription(
-              parsedBody.data.description,
-              parsedBody.data.relatedEvent,
-            ),
+            description: parsedBody.data.description,
             createdById: userId,
             source: ExpenseSource.MANUAL,
           },
@@ -149,6 +158,13 @@ export async function POST(request: Request) {
     if (result.status === "invalid_relation") {
       return NextResponse.json(
         { error: "La saison ou la catégorie sélectionnée est invalide" },
+        { status: 400 },
+      );
+    }
+
+    if (result.status === "invalid_competition") {
+      return NextResponse.json(
+        { error: "La compétition sélectionnée n’appartient pas à cette saison" },
         { status: 400 },
       );
     }

@@ -32,14 +32,14 @@ export function AppShell({ children, session }: AppShellProps) {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link className="flex items-center gap-3" href="/">
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-sm font-black tracking-tight text-primary-foreground">
-              CE
+              EH
             </span>
             <span>
               <span className="block text-sm font-bold uppercase tracking-[0.18em] text-primary">
                 COMEH
               </span>
               <span className="hidden text-xs text-slate-500 sm:block">
-                Commission Escrime Handisport
+                COMmission Épée Homme
               </span>
             </span>
           </Link>
@@ -95,7 +95,7 @@ export function AppShell({ children, session }: AppShellProps) {
                 href="/imports"
               >
                 <FileUp className="h-4 w-4" />
-                Import IA
+                Import
               </Link>
             ) : null}
             {session.user.role === Role.ADMIN ? (

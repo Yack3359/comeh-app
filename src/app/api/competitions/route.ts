@@ -38,6 +38,7 @@ export async function GET(request: Request) {
           weapon: true,
           gender: true,
           category: true,
+          isSelective: true,
           season: { select: { label: true } },
           _count: { select: { results: true } },
         },
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
             weapon: true,
             gender: true,
             category: true,
+            isSelective: true,
           },
         });
         return { status: "created" as const, competition };

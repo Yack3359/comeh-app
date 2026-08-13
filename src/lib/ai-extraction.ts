@@ -165,8 +165,11 @@ export type ExtractedResult = {
   competitionName?: string;
   date?: string;
   rank?: number;
+  seedRank?: number;
+  poolRank?: number;
   won?: boolean;
-  score?: string;
+  scoreFor?: number;
+  scoreAgainst?: number;
   round?: string;
   confidence: "high" | "medium" | "low";
   notes?: string;
@@ -206,13 +209,25 @@ const resultsExtractionTool: Anthropic.Tool = {
               type: "integer",
               description: "Classement final dans la compétition, si applicable.",
             },
+            seedRank: {
+              type: "integer",
+              description: "Classement initial (avant compétition), si mentionné.",
+            },
+            poolRank: {
+              type: "integer",
+              description: "Classement à l'issue des poules, si le tireur est concerné.",
+            },
             won: {
               type: "boolean",
-              description: "Victoire (true) ou défaite (false) pour un assaut individuel.",
+              description: "Victoire (true) ou défaite (false) pour un résultat de poule ou de tableau.",
             },
-            score: {
-              type: "string",
-              description: "Score de l'assaut si présent (ex: 15-12).",
+            scoreFor: {
+              type: "integer",
+              description: "Nombre de touches marquées par le tireur de la COMEH (ex: 15 dans 15-12).",
+            },
+            scoreAgainst: {
+              type: "integer",
+              description: "Nombre de touches marquées par l'adversaire (ex: 12 dans 15-12).",
             },
             round: {
               type: "string",

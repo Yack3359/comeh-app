@@ -14,6 +14,7 @@ import {
 import { BudgetEditor } from "./budget-editor";
 import { BudgetTracking } from "./budget-tracking";
 import { CategoryManager } from "./category-manager";
+import { ExpenseImportPanel } from "./expense-import-panel";
 import { ExpenseManager } from "./expense-manager";
 import { SeasonSelect } from "./season-select";
 import type { Season } from "./types";
@@ -127,9 +128,16 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
         </div>
       ) : (
         <Tabs defaultValue="tracking">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4">
+          <TabsList
+            className={`grid h-auto w-full grid-cols-2 gap-1 p-1 ${
+              canManage ? "sm:grid-cols-5" : "sm:grid-cols-4"
+            }`}
+          >
             <TabsTrigger value="tracking">Suivi budgétaire</TabsTrigger>
             <TabsTrigger value="expenses">Notes de frais</TabsTrigger>
+            {canManage ? (
+              <TabsTrigger value="import">Importer</TabsTrigger>
+            ) : null}
             <TabsTrigger value="budget">Prévisionnel</TabsTrigger>
             <TabsTrigger value="categories">Catégories</TabsTrigger>
           </TabsList>
@@ -147,12 +155,21 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
               seasons={seasons}
             />
           </TabsContent>
+          {canManage ? (
+            <TabsContent className="mt-5" value="import">
+              <ExpenseImportPanel
+                onChanged={() => setDataVersion((current) => current + 1)}
+                seasons={seasons}
+              />
+            </TabsContent>
+          ) : null}
           <TabsContent className="mt-5" value="budget">
             <BudgetEditor
               canManage={canManage}
               categoryVersion={categoryVersion}
               onChanged={() => setDataVersion((current) => current + 1)}
               seasonId={seasonId}
+              seasons={seasons}
             />
           </TabsContent>
           <TabsContent className="mt-5" value="categories">

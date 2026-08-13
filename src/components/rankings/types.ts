@@ -53,11 +53,19 @@ export type Athlete = {
   };
 };
 
+export type TeamMember = {
+  id: string;
+  bibNumber: number | null;
+  athleteId: string;
+  athlete: { firstName: string; lastName: string };
+};
+
 export type Team = {
   id: string;
   name: string;
   seasonId: string;
   season: { label: string };
+  members: TeamMember[];
   _count: { results: number };
 };
 
@@ -72,6 +80,7 @@ export type Competition = {
   weapon: WeaponValue | null;
   gender: GenderValue | null;
   category: FencingCategoryValue | null;
+  isSelective: boolean;
   season: { label: string };
   _count: { results: number };
 };
@@ -84,10 +93,15 @@ export type RankingResult = {
   athleteId: string | null;
   teamId: string | null;
   opponentAthleteId: string | null;
+  opponentTeamName: string | null;
   rank: number | null;
-  score: string | null;
+  seedRank: number | null;
+  poolRank: number | null;
+  scoreFor: number | null;
+  scoreAgainst: number | null;
   round: string | null;
   won: boolean | null;
+  observations: string | null;
   competition: {
     name: string;
     date: string;
@@ -142,8 +156,8 @@ export type AthleteHistoryData = {
     rankings: Array<{
       id: string;
       rank: number;
-      score: string | null;
-      round: string | null;
+      seedRank: number | null;
+      poolRank: number | null;
       competition: {
         id: string;
         name: string;

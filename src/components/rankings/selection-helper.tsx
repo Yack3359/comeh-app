@@ -55,8 +55,8 @@ export function SelectionHelper({
 }: SelectionHelperProps) {
   const [category, setCategory] =
     useState<FencingCategoryValue>("SENIOR");
-  const [weapon, setWeapon] = useState<WeaponValue>("EPEE");
-  const [gender, setGender] = useState<GenderValue>("MALE");
+  const weapon: WeaponValue = "EPEE";
+  const gender: GenderValue = "MALE";
   const [selectionSize, setSelectionSize] = useState(3);
   const [athletes, setAthletes] = useState<SelectionHelperAthlete[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -193,37 +193,23 @@ export function SelectionHelper({
             </div>
             <div className="space-y-2">
               <Label htmlFor="selection-weapon">Arme</Label>
-              <Select
-                onValueChange={(value) => setWeapon(value as WeaponValue)}
-                value={weapon}
-              >
+              <Select disabled value="EPEE">
                 <SelectTrigger id="selection-weapon">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(weaponLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="EPEE">{weaponLabels.EPEE}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="selection-gender">Sexe</Label>
-              <Select
-                onValueChange={(value) => setGender(value as GenderValue)}
-                value={gender}
-              >
+              <Select disabled value="MALE">
                 <SelectTrigger id="selection-gender">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(genderLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="MALE">{genderLabels.MALE}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

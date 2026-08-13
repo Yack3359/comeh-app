@@ -59,10 +59,15 @@ type ResultForm = {
   athleteId: string;
   teamId: string;
   opponentAthleteId: string;
+  opponentTeamName: string;
   rank: string;
+  seedRank: string;
+  poolRank: string;
   won: "true" | "false";
-  score: string;
+  scoreFor: string;
+  scoreAgainst: string;
   round: string;
+  observations: string;
 };
 
 const emptyForm: ResultForm = {
@@ -72,11 +77,30 @@ const emptyForm: ResultForm = {
   athleteId: "",
   teamId: "",
   opponentAthleteId: "",
+  opponentTeamName: "",
   rank: "1",
+  seedRank: "",
+  poolRank: "",
   won: "true",
-  score: "",
+  scoreFor: "",
+  scoreAgainst: "",
   round: "",
+  observations: "",
 };
+
+function resultLabel(result: RankingResult) {
+  if (result.type === "ranking") {
+    return `${result.rank}${result.rank === 1 ? "er" : "e"}`;
+  }
+  return result.won ? "Victoire" : "Défaite";
+}
+
+function opponentLabel(result: RankingResult) {
+  if (result.opponentAthlete) {
+    return athleteName(result.opponentAthlete);
+  }
+  return result.opponentTeamName ?? null;
+}
 
 export function ResultManager({
   seasonId,
@@ -205,27 +229,34 @@ export function ResultManager({
     setError(null);
     setMessage(null);
 
+    const base = {
+      competitionId: form.competitionId,
+      participantType: form.participantType,
+      athleteId: form.participantType === "athlete" ? form.athleteId : null,
+      teamId: form.participantType === "team" ? form.teamId : null,
+      observations: form.observations,
+    };
+
     const body =
       form.type === "bout"
         ? {
+            ...base,
             type: "bout",
-            competitionId: form.competitionId,
-            athleteId: form.athleteId,
-            opponentAthleteId: form.opponentAthleteId,
+            opponentAthleteId:
+              form.participantType === "athlete" ? form.opponentAthleteId : null,
+            opponentTeamName:
+              form.participantType === "team" ? form.opponentTeamName : null,
             won: form.won === "true",
-            score: form.score,
+            scoreFor: form.scoreFor || null,
+            scoreAgainst: form.scoreAgainst || null,
             round: form.round,
           }
         : {
+            ...base,
             type: "ranking",
-            competitionId: form.competitionId,
-            participantType: form.participantType,
-            athleteId:
-              form.participantType === "athlete" ? form.athleteId : null,
-            teamId: form.participantType === "team" ? form.teamId : null,
             rank: form.rank,
-            score: form.score,
-            round: form.round,
+            seedRank: form.seedRank || null,
+            poolRank: form.poolRank || null,
           };
 
     try {
@@ -257,10 +288,16 @@ export function ResultManager({
       athleteId: result.athleteId ?? athletes[0]?.id ?? "",
       teamId: result.teamId ?? teams[0]?.id ?? "",
       opponentAthleteId: result.opponentAthleteId ?? "",
+      opponentTeamName: result.opponentTeamName ?? "",
       rank: String(result.rank ?? 1),
+      seedRank: result.seedRank ? String(result.seedRank) : "",
+      poolRank: result.poolRank ? String(result.poolRank) : "",
       won: result.won === false ? "false" : "true",
-      score: result.score ?? "",
+      scoreFor: result.scoreFor !== null ? String(result.scoreFor) : "",
+      scoreAgainst:
+        result.scoreAgainst !== null ? String(result.scoreAgainst) : "",
       round: result.round ?? "",
+      observations: result.observations ?? "",
     });
   }
 
@@ -285,6 +322,14 @@ export function ResultManager({
     }
   }
 
+  const canSubmit =
+    Boolean(form.competitionId) &&
+    (form.participantType === "athlete" ? Boolean(form.athleteId) : Boolean(form.teamId)) &&
+    (form.type !== "bout" ||
+      (form.participantType === "athlete"
+        ? Boolean(form.opponentAthleteId)
+        : Boolean(form.opponentTeamName.trim())));
+
   return (
     <div className="space-y-5">
       <CompetitionFilterPanel
@@ -299,8 +344,8 @@ export function ResultManager({
               {editingId ? "Modifier le résultat" : "Saisir un résultat"}
             </CardTitle>
             <CardDescription>
-              Enregistrez soit un classement final, soit un assaut individuel
-              face à un adversaire profilé.
+              Enregistrez soit un classement (final, initial, poule), soit un
+              résultat unitaire de poule ou de tableau face à un adversaire.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -321,8 +366,8 @@ export function ResultManager({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ranking">Classement final</SelectItem>
-                      <SelectItem value="bout">Assaut individuel</SelectItem>
+                      <SelectItem value="ranking">Classement</SelectItem>
+                      <SelectItem value="bout">Résultat poule / tableau</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -349,32 +394,29 @@ export function ResultManager({
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="result-participant-type">Participant</Label>
+                  <Select
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        participantType:
+                          value as ResultForm["participantType"],
+                      }))
+                    }
+                    value={form.participantType}
+                  >
+                    <SelectTrigger id="result-participant-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="athlete">Athlète</SelectItem>
+                      <SelectItem value="team">Équipe</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                {form.type === "ranking" ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="result-participant-type">Participant</Label>
-                    <Select
-                      onValueChange={(value) =>
-                        setForm((current) => ({
-                          ...current,
-                          participantType:
-                            value as ResultForm["participantType"],
-                        }))
-                      }
-                      value={form.participantType}
-                    >
-                      <SelectTrigger id="result-participant-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="athlete">Athlète</SelectItem>
-                        <SelectItem value="team">Équipe</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
-
-                {form.type === "bout" || form.participantType === "athlete" ? (
+                {form.participantType === "athlete" ? (
                   <div className="space-y-2">
                     <Label htmlFor="result-athlete">Athlète</Label>
                     <Select
@@ -426,28 +468,97 @@ export function ResultManager({
 
                 {form.type === "bout" ? (
                   <>
+                    {form.participantType === "athlete" ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="result-opponent">Adversaire</Label>
+                        <Select
+                          onValueChange={(value) =>
+                            setForm((current) => ({
+                              ...current,
+                              opponentAthleteId: value,
+                            }))
+                          }
+                          value={form.opponentAthleteId}
+                        >
+                          <SelectTrigger id="result-opponent">
+                            <SelectValue placeholder="Choisir l’adversaire" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opponentOptions.map((athlete) => (
+                              <SelectItem key={athlete.id} value={athlete.id}>
+                                {athleteName(athlete)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="result-opponent-team">
+                          Équipe adverse
+                        </Label>
+                        <Input
+                          id="result-opponent-team"
+                          maxLength={160}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              opponentTeamName: event.target.value,
+                            }))
+                          }
+                          placeholder="Ex. Suisse"
+                          value={form.opponentTeamName}
+                        />
+                      </div>
+                    )}
                     <div className="space-y-2">
-                      <Label htmlFor="result-opponent">Adversaire</Label>
-                      <Select
-                        onValueChange={(value) =>
+                      <Label htmlFor="result-score-for">
+                        Score {form.participantType === "team" ? "équipe" : "tireur"}
+                      </Label>
+                      <Input
+                        id="result-score-for"
+                        min={0}
+                        onChange={(event) =>
                           setForm((current) => ({
                             ...current,
-                            opponentAthleteId: value,
+                            scoreFor: event.target.value,
                           }))
                         }
-                        value={form.opponentAthleteId}
-                      >
-                        <SelectTrigger id="result-opponent">
-                          <SelectValue placeholder="Choisir l’adversaire" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opponentOptions.map((athlete) => (
-                            <SelectItem key={athlete.id} value={athlete.id}>
-                              {athleteName(athlete)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        type="number"
+                        value={form.scoreFor}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="result-score-against">
+                        Score adversaire
+                      </Label>
+                      <Input
+                        id="result-score-against"
+                        min={0}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            scoreAgainst: event.target.value,
+                          }))
+                        }
+                        type="number"
+                        value={form.scoreAgainst}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="result-round">Tour / phase</Label>
+                      <Input
+                        id="result-round"
+                        maxLength={80}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            round: event.target.value,
+                          }))
+                        }
+                        placeholder="Ex. Poule 1, T16, 1/4"
+                        value={form.round}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="result-won">Issue</Label>
@@ -471,58 +582,86 @@ export function ResultManager({
                     </div>
                   </>
                 ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="result-rank">Rang</Label>
-                    <Input
-                      id="result-rank"
-                      min={1}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          rank: event.target.value,
-                        }))
-                      }
-                      required
-                      type="number"
-                      value={form.rank}
-                    />
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="result-rank">Classement final</Label>
+                      <Input
+                        id="result-rank"
+                        min={1}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            rank: event.target.value,
+                          }))
+                        }
+                        required
+                        type="number"
+                        value={form.rank}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="result-seed-rank">
+                        Classement initial{" "}
+                        <span className="font-normal text-slate-400">
+                          (facultatif)
+                        </span>
+                      </Label>
+                      <Input
+                        id="result-seed-rank"
+                        min={1}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            seedRank: event.target.value,
+                          }))
+                        }
+                        type="number"
+                        value={form.seedRank}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="result-pool-rank">
+                        Classement poule{" "}
+                        <span className="font-normal text-slate-400">
+                          (facultatif, si le tireur est concerné)
+                        </span>
+                      </Label>
+                      <Input
+                        id="result-pool-rank"
+                        min={1}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            poolRank: event.target.value,
+                          }))
+                        }
+                        type="number"
+                        value={form.poolRank}
+                      />
+                    </div>
+                  </>
                 )}
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="result-score">
-                    Score <span className="font-normal text-slate-400">(facultatif)</span>
-                  </Label>
-                  <Input
-                    id="result-score"
-                    maxLength={80}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        score: event.target.value,
-                      }))
-                    }
-                    placeholder="Ex. 15-12"
-                    value={form.score}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="result-round">
-                    Tour <span className="font-normal text-slate-400">(facultatif)</span>
-                  </Label>
-                  <Input
-                    id="result-round"
-                    maxLength={80}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        round: event.target.value,
-                      }))
-                    }
-                    placeholder="Ex. T16"
-                    value={form.round}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="result-observations">
+                  Observations{" "}
+                  <span className="font-normal text-slate-400">
+                    (facultatif — analyse, contexte, commentaire libre)
+                  </span>
+                </Label>
+                <textarea
+                  className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  id="result-observations"
+                  maxLength={5000}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      observations: event.target.value,
+                    }))
+                  }
+                  value={form.observations}
+                />
               </div>
 
               {visibleCompetitions.length === 0 ? (
@@ -538,17 +677,7 @@ export function ResultManager({
                     Annuler
                   </Button>
                 ) : null}
-                <Button
-                  disabled={
-                    isPending ||
-                    !form.competitionId ||
-                    (form.type === "bout" && !form.opponentAthleteId) ||
-                    (form.type === "ranking" &&
-                      form.participantType === "team" &&
-                      !form.teamId)
-                  }
-                  type="submit"
-                >
+                <Button disabled={isPending || !canSubmit} type="submit">
                   {editingId ? (
                     <Save className="mr-2 h-4 w-4" />
                   ) : (
@@ -566,7 +695,7 @@ export function ResultManager({
         <CardHeader>
           <CardTitle className="text-xl">Résultats de la saison</CardTitle>
           <CardDescription>
-            Classements finaux et assauts individuels réunis dans un même
+            Classements et résultats de poule/tableau réunis dans un même
             historique.
           </CardDescription>
         </CardHeader>
@@ -606,28 +735,45 @@ export function ResultManager({
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      {result.type === "bout" ? "Assaut" : "Classement"}
+                      {result.type === "bout" ? "Poule/Tableau" : "Classement"}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {result.athlete
                       ? athleteName(result.athlete)
                       : result.team?.name ?? "—"}
-                    {result.opponentAthlete ? (
+                    {opponentLabel(result) ? (
                       <p className="text-xs text-slate-500">
-                        vs {athleteName(result.opponentAthlete)}
+                        vs {opponentLabel(result)}
                       </p>
                     ) : null}
                   </TableCell>
                   <TableCell className="font-semibold">
-                    {result.type === "bout"
-                      ? result.won
-                        ? "Victoire"
-                        : "Défaite"
-                      : `${result.rank}${result.rank === 1 ? "er" : "e"}`}
+                    {resultLabel(result)}
                   </TableCell>
                   <TableCell className="text-sm text-slate-600">
-                    {[result.score, result.round].filter(Boolean).join(" · ") || "—"}
+                    {result.type === "ranking"
+                      ? [
+                          result.seedRank
+                            ? `Initial ${result.seedRank}e`
+                            : null,
+                          result.poolRank ? `Poule ${result.poolRank}e` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"
+                      : [
+                          result.scoreFor !== null && result.scoreAgainst !== null
+                            ? `${result.scoreFor}-${result.scoreAgainst}`
+                            : null,
+                          result.round,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                    {result.observations ? (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {result.observations}
+                      </p>
+                    ) : null}
                   </TableCell>
                   {canManage ? (
                     <TableCell>
