@@ -99,7 +99,7 @@ export function ImportBatchCard({
           </CardDescription>
         </div>
         <Button asChild size="sm" variant="outline">
-          <a href={batch.fileUrl} rel="noreferrer" target="_blank">
+          <a href={`/api/imports/${batch.id}/file`} rel="noreferrer" target="_blank">
             Fichier original
             <ExternalLink className="ml-2 h-3.5 w-3.5" />
           </a>

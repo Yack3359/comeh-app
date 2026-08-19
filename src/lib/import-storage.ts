@@ -1,23 +1,16 @@
-import path from "node:path";
+import { put } from "@vercel/blob";
 
-const uploadRoot = path.resolve(process.cwd(), "storage", "uploads");
+export async function uploadImportFile(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string,
+): Promise<string> {
+  const pathname = `imports/${fileName}`;
 
-export function getUploadRoot() {
-  return uploadRoot;
+  await put(pathname, buffer, {
+    access: "private",
+    contentType,
+  });
+
+  return pathname;
 }
-
-export function storedUploadPath(fileName: string) {
-  return path.posix.join("storage", "uploads", fileName);
-}
-
-export function resolveStoredUpload(fileUrl: string) {
-  const absolutePath = path.resolve(process.cwd(), fileUrl);
-  const rootPrefix = `${uploadRoot}${path.sep}`;
-
-  if (!absolutePath.startsWith(rootPrefix)) {
-    throw new Error("Chemin de fichier d’import invalide");
-  }
-
-  return absolutePath;
-}
-

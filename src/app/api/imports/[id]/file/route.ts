@@ -1,12 +1,10 @@
-import { readFile } from "node:fs/promises";
-
+import { get } from "@vercel/blob";
 import { Role } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import { runAsAuthenticatedUser } from "@/lib/api-auth";
 import { apiErrorResponse, invalidDataResponse } from "@/lib/api-response";
 import { parseImportExtractionEnvelope } from "@/lib/import-batches";
-import { resolveStoredUpload } from "@/lib/import-storage";
 import { importBatchParamsSchema } from "@/lib/import-validations";
 import { prisma } from "@/lib/prisma";
 
@@ -61,10 +59,9 @@ export async function GET(_request: Request, context: RouteContext) {
           return { status: "invalid_metadata" as const };
         }
 
-        const bytes = await readFile(resolveStoredUpload(batch.fileUrl));
         return {
           status: "found" as const,
-          bytes,
+          fileUrl: batch.fileUrl,
           mimeType: parsedEnvelope.data.mimeType,
           originalName: parsedEnvelope.data.originalName,
         };
@@ -90,7 +87,15 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
-    return new NextResponse(new Uint8Array(result.bytes), {
+    const blobResult = await get(result.fileUrl, { access: "private" });
+    if (blobResult === null) {
+      return NextResponse.json(
+        { error: "Le fichier original est introuvable" },
+        { status: 404 },
+      );
+    }
+
+    return new NextResponse(blobResult.stream, {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Disposition": contentDisposition(result.originalName),
@@ -99,21 +104,9 @@ export async function GET(_request: Request, context: RouteContext) {
       },
     });
   } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return NextResponse.json(
-        { error: "Le fichier original est introuvable" },
-        { status: 404 },
-      );
-    }
-
     return apiErrorResponse(
       error,
       "Impossible de télécharger le fichier original",
     );
   }
 }
-

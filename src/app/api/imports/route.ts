@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 
 import {
   ImportSourceType,
@@ -21,7 +19,7 @@ import {
   toImportJson,
   type ImportExtractionEnvelope,
 } from "@/lib/import-batches";
-import { getUploadRoot, storedUploadPath } from "@/lib/import-storage";
+import { uploadImportFile } from "@/lib/import-storage";
 import { importUploadFieldsSchema } from "@/lib/import-validations";
 import { parseExpensesExcel, parseResultsExcel } from "@/lib/excel-import";
 import { prisma } from "@/lib/prisma";
@@ -251,11 +249,11 @@ export async function POST(request: Request) {
 
         const buffer = Buffer.from(await file.arrayBuffer());
         const generatedFileName = `${randomUUID()}${configuration.extension}`;
-        const fileUrl = storedUploadPath(generatedFileName);
-        await mkdir(getUploadRoot(), { recursive: true });
-        await writeFile(path.join(getUploadRoot(), generatedFileName), buffer, {
-          flag: "wx",
-        });
+        const fileUrl = await uploadImportFile(
+          buffer,
+          generatedFileName,
+          file.type,
+        );
 
         const initialEnvelope: ImportExtractionEnvelope = {
           version: 1,
