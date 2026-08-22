@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Loader2, Save } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Loader2, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,13 +15,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import type { Category, Competition, ImportExtractionEnvelope } from "./types";
+import type {
+  Category,
+  Competition,
+  ImportExtractionEnvelope,
+  Season,
+} from "./types";
 import {
   asRecord,
+  formatDate,
   normalizeText,
   requestJson,
   textValue,
 } from "./utils";
+
+const euroFormatter = new Intl.NumberFormat("fr-FR", {
+  style: "currency",
+  currency: "EUR",
+});
 
 type ExpenseDraft = {
   amount: string;
@@ -54,12 +65,14 @@ type ExpenseReviewProps = {
   batchId: string;
   envelope: ImportExtractionEnvelope;
   onValidated: () => Promise<void>;
+  seasons: Season[];
 };
 
 export function ExpenseReview({
   batchId,
   envelope,
   onValidated,
+  seasons,
 }: ExpenseReviewProps) {
   const [drafts, setDrafts] = useState<ExpenseDraft[]>(() =>
     envelope.rows.map(createDraft),
@@ -67,6 +80,10 @@ export function ExpenseReview({
   const [categories, setCategories] = useState<Category[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [collapsedIndexes, setCollapsedIndexes] = useState<Set<number>>(
+    new Set(),
+  );
+  const [isChangingSeason, setIsChangingSeason] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
 
   const validatedIndexes = useMemo(
@@ -85,15 +102,20 @@ export function ExpenseReview({
         setCategories(loadedCategories);
         setDrafts((current) =>
           current.map((draft) => {
-            if (draft.categoryId || !draft.categoryHint) {
+            if (
+              loadedCategories.some(
+                (category) => category.id === draft.categoryId,
+              )
+            ) {
               return draft;
             }
             const match = loadedCategories.find(
               (category) =>
+                Boolean(draft.categoryHint) &&
                 normalizeText(category.name) ===
                 normalizeText(draft.categoryHint),
             );
-            return match ? { ...draft, categoryId: match.id } : draft;
+            return { ...draft, categoryId: match?.id ?? "" };
           }),
         );
       })
@@ -112,15 +134,26 @@ export function ExpenseReview({
         setCompetitions(loadedCompetitions);
         setDrafts((current) =>
           current.map((draft) => {
-            if (draft.competitionId !== "NONE" || !draft.competitionHint) {
+            if (
+              loadedCompetitions.some(
+                (competition) => competition.id === draft.competitionId,
+              )
+            ) {
+              return draft;
+            }
+            if (
+              draft.competitionId === "NONE" &&
+              !draft.competitionHint
+            ) {
               return draft;
             }
             const match = loadedCompetitions.find(
               (competition) =>
+                Boolean(draft.competitionHint) &&
                 normalizeText(competition.name) ===
                 normalizeText(draft.competitionHint),
             );
-            return match ? { ...draft, competitionId: match.id } : draft;
+            return { ...draft, competitionId: match?.id ?? "NONE" };
           }),
         );
       })
@@ -135,6 +168,60 @@ export function ExpenseReview({
         draftIndex === index ? { ...draft, ...patch } : draft,
       ),
     );
+  }
+
+  function toggleCollapsed(index: number) {
+    setCollapsedIndexes((current) => {
+      const updated = new Set(current);
+      if (updated.has(index)) {
+        updated.delete(index);
+      } else {
+        updated.add(index);
+      }
+      return updated;
+    });
+  }
+
+  function summary(draft: ExpenseDraft) {
+    const amount = Number(draft.amount);
+    const parts = [
+      draft.amount && Number.isFinite(amount)
+        ? euroFormatter.format(amount)
+        : undefined,
+      draft.date && !Number.isNaN(new Date(draft.date).getTime())
+        ? formatDate(draft.date)
+        : undefined,
+      categories.find((category) => category.id === draft.categoryId)?.name,
+      competitions.find(
+        (competition) => competition.id === draft.competitionId,
+      )?.name,
+    ].filter((value): value is string => Boolean(value));
+
+    return parts.join(" · ") || draft.description || "Dépense";
+  }
+
+  async function changeSeason(seasonId: string) {
+    if (seasonId === envelope.seasonId) {
+      return;
+    }
+
+    setError(null);
+    setIsChangingSeason(true);
+    try {
+      await requestJson(`/api/imports/${batchId}/season`, {
+        method: "PATCH",
+        body: JSON.stringify({ seasonId }),
+      });
+      await onValidated();
+    } catch (seasonError) {
+      setError(
+        seasonError instanceof Error
+          ? seasonError.message
+          : "Impossible de changer la saison",
+      );
+    } finally {
+      setIsChangingSeason(false);
+    }
   }
 
   async function validate(indexes: number[]) {
@@ -195,6 +282,46 @@ export function ExpenseReview({
         enregistrement.
       </div>
 
+      {envelope.validatedRowIndexes.length === 0 ? (
+        <div className="max-w-sm space-y-2">
+          <Label htmlFor={`${batchId}-season`}>Saison de cet import</Label>
+          <Select
+            disabled={isChangingSeason}
+            onValueChange={(value) => void changeSeason(value)}
+            value={envelope.seasonId}
+          >
+            <SelectTrigger id={`${batchId}-season`}>
+              <SelectValue placeholder="Choisir une saison" />
+            </SelectTrigger>
+            <SelectContent>
+              {seasons.map((season) => (
+                <SelectItem key={season.id} value={season.id}>
+                  {season.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isChangingSeason ? (
+            <p className="flex items-center text-xs text-slate-500">
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              Changement de saison…
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+          <p className="font-medium">
+            Saison de cet import :{" "}
+            {seasons.find((season) => season.id === envelope.seasonId)?.label ??
+              envelope.seasonId}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            La saison ne peut plus être modifiée car des lignes ont déjà été
+            validées.
+          </p>
+        </div>
+      )}
+
       {error ? (
         <p
           className="rounded-md border border-accent/20 bg-accent-50 p-3 text-sm text-accent-700"
@@ -213,7 +340,7 @@ export function ExpenseReview({
               key={index}
             >
               <span className="text-sm font-medium text-emerald-800">
-                Ligne {index + 1} · {draft.description || "Dépense"}
+                Ligne {index + 1} · {summary(draft)}
               </span>
               <Badge
                 className="border-emerald-200 bg-white text-emerald-800"
@@ -226,13 +353,40 @@ export function ExpenseReview({
           );
         }
 
+        const isCollapsed = collapsedIndexes.has(index);
+        if (isCollapsed) {
+          return (
+            <div
+              className="flex items-center justify-between gap-3 rounded-lg border bg-slate-50 px-4 py-3"
+              key={index}
+            >
+              <span className="min-w-0 truncate text-sm font-medium text-slate-700">
+                Ligne {index + 1} · {summary(draft)}
+              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge variant="outline">À relire</Badge>
+                <Button
+                  aria-label={`Réouvrir la dépense ${index + 1}`}
+                  className="h-8 w-8"
+                  onClick={() => toggleCollapsed(index)}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div className="space-y-4 rounded-lg border p-4" key={index}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-semibold text-slate-900">
                 Dépense {index + 1}
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {draft.confidence ? (
                   <Badge variant="outline">
                     Confiance : {draft.confidence}
@@ -243,6 +397,16 @@ export function ExpenseReview({
                     Catégorie détectée : {draft.categoryHint}
                   </Badge>
                 ) : null}
+                <Button
+                  aria-label={`Réduire la dépense ${index + 1}`}
+                  className="h-8 w-8"
+                  onClick={() => toggleCollapsed(index)}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 

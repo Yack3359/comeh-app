@@ -8,7 +8,10 @@ import {
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
+  Loader2,
+  Trash2,
 } from "lucide-react";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,11 +26,12 @@ import {
 import { ExpenseReview } from "./expense-review";
 import { ResultReview } from "./result-review";
 import type { ImportBatch, Season } from "./types";
-import { formatDate, isImportEnvelope } from "./utils";
+import { formatDate, isImportEnvelope, requestJson } from "./utils";
 
 type ImportBatchCardProps = {
   batch: ImportBatch;
   seasons: Season[];
+  onDeleted?: () => Promise<void>;
   onValidated: () => Promise<void>;
 };
 
@@ -41,8 +45,11 @@ const statusLabels = {
 export function ImportBatchCard({
   batch,
   seasons,
+  onDeleted,
   onValidated,
 }: ImportBatchCardProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const envelope = isImportEnvelope(batch.extraction)
     ? batch.extraction
     : null;
@@ -59,6 +66,31 @@ export function ImportBatchCard({
       : batch.status === "FAILED"
         ? AlertTriangle
         : Clock3;
+
+  async function deleteBatch() {
+    if (!window.confirm("Supprimer définitivement cet import ?")) {
+      return;
+    }
+
+    setDeleteError(null);
+    setIsDeleting(true);
+    try {
+      await requestJson(`/api/imports/${batch.id}`, { method: "DELETE" });
+      if (onDeleted) {
+        await onDeleted();
+      } else {
+        window.location.reload();
+      }
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de supprimer cet import",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   return (
     <Card className={batch.status === "FAILED" ? "border-accent/30" : ""}>
@@ -98,14 +130,43 @@ export function ImportBatchCard({
               : ""}
           </CardDescription>
         </div>
-        <Button asChild size="sm" variant="outline">
-          <a href={`/api/imports/${batch.id}/file`} rel="noreferrer" target="_blank">
-            Fichier original
-            <ExternalLink className="ml-2 h-3.5 w-3.5" />
-          </a>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <a
+              href={`/api/imports/${batch.id}/file`}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Fichier original
+              <ExternalLink className="ml-2 h-3.5 w-3.5" />
+            </a>
+          </Button>
+          <Button
+            disabled={isDeleting}
+            onClick={() => void deleteBatch()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {isDeleting ? (
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-3.5 w-3.5" />
+            )}
+            Supprimer
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
+        {deleteError ? (
+          <p
+            className="mb-4 rounded-md border border-accent/20 bg-accent-50 p-3 text-sm text-accent-700"
+            role="alert"
+          >
+            {deleteError}
+          </p>
+        ) : null}
+
         {!envelope ? (
           <p className="rounded-md border border-accent/20 bg-accent-50 p-3 text-sm text-accent-700">
             Les métadonnées de cet import sont illisibles.
@@ -140,6 +201,7 @@ export function ImportBatchCard({
             batchId={batch.id}
             envelope={envelope}
             onValidated={onValidated}
+            seasons={seasons}
           />
         ) : null}
 
@@ -150,10 +212,10 @@ export function ImportBatchCard({
             batchId={batch.id}
             envelope={envelope}
             onValidated={onValidated}
+            seasons={seasons}
           />
         ) : null}
       </CardContent>
     </Card>
   );
 }
-

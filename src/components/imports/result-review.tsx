@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Loader2, Save } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Loader2, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import type {
   Athlete,
   Competition,
   ImportExtractionEnvelope,
+  Season,
 } from "./types";
 import {
   asRecord,
@@ -54,6 +55,7 @@ type ResultReviewProps = {
   batchId: string;
   envelope: ImportExtractionEnvelope;
   onValidated: () => Promise<void>;
+  seasons: Season[];
 };
 
 function importedWon(value: unknown): WonValue {
@@ -118,6 +120,7 @@ export function ResultReview({
   batchId,
   envelope,
   onValidated,
+  seasons,
 }: ResultReviewProps) {
   const [drafts, setDrafts] = useState<ResultDraft[]>(() =>
     envelope.rows.map(createDraft),
@@ -125,6 +128,10 @@ export function ResultReview({
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [collapsedIndexes, setCollapsedIndexes] = useState<Set<number>>(
+    new Set(),
+  );
+  const [isChangingSeason, setIsChangingSeason] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
 
   const validatedIndexes = useMemo(
@@ -157,20 +164,25 @@ export function ResultReview({
                   matchesAthlete(item, draft.opponentHint),
                 )
               : undefined;
-            const competition = loadedCompetitions.find((item) => {
-              if (
-                draft.competitionHint &&
-                normalizeText(item.name) ===
-                  normalizeText(draft.competitionHint)
-              ) {
-                return true;
-              }
-              return (
-                !draft.competitionHint &&
-                Boolean(draft.dateHint) &&
-                item.date.slice(0, 10) === draft.dateHint.slice(0, 10)
-              );
-            });
+            const selectedCompetition = loadedCompetitions.find(
+              (item) => item.id === draft.competitionId,
+            );
+            const competition =
+              selectedCompetition ??
+              loadedCompetitions.find((item) => {
+                if (
+                  draft.competitionHint &&
+                  normalizeText(item.name) ===
+                    normalizeText(draft.competitionHint)
+                ) {
+                  return true;
+                }
+                return (
+                  !draft.competitionHint &&
+                  Boolean(draft.dateHint) &&
+                  item.date.slice(0, 10) === draft.dateHint.slice(0, 10)
+                );
+              });
 
             return {
               ...draft,
@@ -178,7 +190,7 @@ export function ResultReview({
               opponentAthleteId:
                 draft.opponentAthleteId || opponent?.id || "",
               competitionId:
-                draft.competitionId || competition?.id || "",
+                competition?.id || "",
             };
           }),
         );
@@ -198,6 +210,75 @@ export function ResultReview({
         draftIndex === index ? { ...draft, ...patch } : draft,
       ),
     );
+  }
+
+  function toggleCollapsed(index: number) {
+    setCollapsedIndexes((current) => {
+      const updated = new Set(current);
+      if (updated.has(index)) {
+        updated.delete(index);
+      } else {
+        updated.add(index);
+      }
+      return updated;
+    });
+  }
+
+  function summary(draft: ResultDraft) {
+    const athlete = athletes.find((item) => item.id === draft.athleteId);
+    const competition = competitions.find(
+      (item) => item.id === draft.competitionId,
+    );
+    const score = [draft.scoreFor, draft.scoreAgainst].some(Boolean)
+      ? [draft.scoreFor || "?", draft.scoreAgainst || "?"].join("–")
+      : "";
+    const result =
+      draft.type === "ranking"
+        ? draft.rank
+          ? `Rang ${draft.rank}`
+          : "Classement"
+        : [
+            draft.won === "true"
+              ? "Victoire"
+              : draft.won === "false"
+                ? "Défaite"
+                : "Assaut",
+            score,
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+    return [
+      athlete ? athleteLabel(athlete) : draft.athleteHint || "Athlète",
+      competition?.name || draft.competitionHint,
+      result,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  async function changeSeason(seasonId: string) {
+    if (seasonId === envelope.seasonId) {
+      return;
+    }
+
+    setError(null);
+    setIsChangingSeason(true);
+    try {
+      await requestJson(`/api/imports/${batchId}/season`, {
+        method: "PATCH",
+        body: JSON.stringify({ seasonId }),
+      });
+      await onValidated();
+    } catch (seasonError) {
+      setError(
+        seasonError instanceof Error
+          ? seasonError.message
+          : "Impossible de changer la saison",
+      );
+    } finally {
+      setIsChangingSeason(false);
+    }
   }
 
   async function validate(indexes: number[]) {
@@ -281,6 +362,46 @@ export function ResultReview({
         reconnus exactement sont présélectionnés.
       </div>
 
+      {envelope.validatedRowIndexes.length === 0 ? (
+        <div className="max-w-sm space-y-2">
+          <Label htmlFor={`${batchId}-season`}>Saison de cet import</Label>
+          <Select
+            disabled={isChangingSeason}
+            onValueChange={(value) => void changeSeason(value)}
+            value={envelope.seasonId}
+          >
+            <SelectTrigger id={`${batchId}-season`}>
+              <SelectValue placeholder="Choisir une saison" />
+            </SelectTrigger>
+            <SelectContent>
+              {seasons.map((season) => (
+                <SelectItem key={season.id} value={season.id}>
+                  {season.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isChangingSeason ? (
+            <p className="flex items-center text-xs text-slate-500">
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              Changement de saison…
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+          <p className="font-medium">
+            Saison de cet import :{" "}
+            {seasons.find((season) => season.id === envelope.seasonId)?.label ??
+              envelope.seasonId}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            La saison ne peut plus être modifiée car des lignes ont déjà été
+            validées.
+          </p>
+        </div>
+      )}
+
       {competitions.length === 0 ? (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
           Aucune compétition n’existe pour cette saison. Créez-la d’abord dans
@@ -306,7 +427,7 @@ export function ResultReview({
               key={index}
             >
               <span className="text-sm font-medium text-emerald-800">
-                Ligne {index + 1} · {draft.athleteHint || "Résultat"}
+                Ligne {index + 1} · {summary(draft)}
               </span>
               <Badge
                 className="border-emerald-200 bg-white text-emerald-800"
@@ -319,13 +440,40 @@ export function ResultReview({
           );
         }
 
+        const isCollapsed = collapsedIndexes.has(index);
+        if (isCollapsed) {
+          return (
+            <div
+              className="flex items-center justify-between gap-3 rounded-lg border bg-slate-50 px-4 py-3"
+              key={index}
+            >
+              <span className="min-w-0 truncate text-sm font-medium text-slate-700">
+                Ligne {index + 1} · {summary(draft)}
+              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge variant="outline">À relire</Badge>
+                <Button
+                  aria-label={`Réouvrir le résultat ${index + 1}`}
+                  className="h-8 w-8"
+                  onClick={() => toggleCollapsed(index)}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div className="space-y-4 rounded-lg border p-4" key={index}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-semibold text-slate-900">
                 Résultat {index + 1}
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {draft.confidence ? (
                   <Badge variant="outline">
                     Confiance : {draft.confidence}
@@ -334,6 +482,16 @@ export function ResultReview({
                 {draft.dateHint ? (
                   <Badge variant="secondary">Date lue : {draft.dateHint}</Badge>
                 ) : null}
+                <Button
+                  aria-label={`Réduire le résultat ${index + 1}`}
+                  className="h-8 w-8"
+                  onClick={() => toggleCollapsed(index)}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
@@ -614,4 +772,3 @@ export function ResultReview({
     </div>
   );
 }
-

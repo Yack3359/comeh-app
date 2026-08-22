@@ -162,6 +162,7 @@ export function ImportsModule() {
           <ImportBatchCard
             batch={batch}
             key={batch.id}
+            onDeleted={() => refresh("Import supprimé.")}
             onValidated={() =>
               refresh("Les données sélectionnées ont été enregistrées.")
             }
@@ -172,4 +173,3 @@ export function ImportsModule() {
     </div>
   );
 }
-

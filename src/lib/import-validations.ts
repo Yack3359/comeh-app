@@ -52,3 +52,6 @@ export const importBatchParamsSchema = z.object({
   id: z.string().trim().min(1, "Identifiant requis").max(64),
 });
 
+export const importSeasonUpdateSchema = z.object({
+  seasonId: z.string().trim().min(1, "La saison est requise").max(64),
+});
