@@ -74,6 +74,10 @@ export const expenseCreateSchema = z.object({
   description: z.string().trim().min(2, "La description est trop courte").max(500),
 });
 
+export const expenseUpdateSchema = expenseCreateSchema.omit({
+  seasonId: true,
+});
+
 export const expenseQuerySchema = z.object({
   seasonId: idSchema.optional(),
   categoryId: idSchema.optional(),

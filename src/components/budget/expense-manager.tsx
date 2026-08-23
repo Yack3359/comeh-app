@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, PlusCircle, X } from "lucide-react";
+import { Download, Pencil, PlusCircle, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -101,6 +101,18 @@ export function ExpenseManager({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [detailExpense, setDetailExpense] = useState<Expense | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editCategoryId, setEditCategoryId] = useState("");
+  const [editFencingCategory, setEditFencingCategory] = useState<
+    FencingCategoryValue | "NONE"
+  >("NONE");
+  const [editCompetitionId, setEditCompetitionId] = useState("NONE");
+  const [editAmount, setEditAmount] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [isEditSaving, setIsEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
   const currentSeason = useMemo(
     () => seasons.find((season) => season.id === seasonId),
@@ -221,6 +233,87 @@ export function ExpenseManager({
       );
     } finally {
       setIsPending(false);
+    }
+  }
+
+  function openEdit(expense: Expense) {
+    setEditCategoryId(expense.categoryId);
+    setEditFencingCategory(expense.fencingCategory ?? "NONE");
+    setEditCompetitionId(expense.competitionId ?? "NONE");
+    setEditAmount(expense.amount);
+    setEditDate(dateInputValue(new Date(expense.date)));
+    setEditDescription(expense.description);
+    setEditError(null);
+    setEditingExpense(expense);
+  }
+
+  async function submitEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!editingExpense) {
+      return;
+    }
+
+    setIsEditSaving(true);
+    setEditError(null);
+
+    try {
+      const updated = await requestJson<Expense>(
+        `/api/expenses/${editingExpense.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            categoryId: editCategoryId,
+            fencingCategory:
+              editFencingCategory === "NONE" ? null : editFencingCategory,
+            competitionId:
+              editCompetitionId === "NONE" ? null : editCompetitionId,
+            amount: editAmount,
+            date: editDate,
+            description: editDescription,
+          }),
+        },
+      );
+      setExpenses((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setEditingExpense(null);
+      onChanged();
+    } catch (mutationError) {
+      setEditError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : "Modification impossible",
+      );
+    } finally {
+      setIsEditSaving(false);
+    }
+  }
+
+  async function deleteExpense(expense: Expense) {
+    if (!window.confirm("Supprimer définitivement ce frais ?")) {
+      return;
+    }
+
+    setIsDeletingId(expense.id);
+    setError(null);
+
+    try {
+      await requestJson(`/api/expenses/${expense.id}`, {
+        method: "DELETE",
+      });
+      setExpenses((current) =>
+        current.filter((item) => item.id !== expense.id),
+      );
+      onChanged();
+    } catch (mutationError) {
+      setError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : "Suppression impossible",
+      );
+    } finally {
+      setIsDeletingId(null);
     }
   }
 
@@ -467,6 +560,7 @@ export function ExpenseManager({
                 <TableHead>Catégorie de tireur</TableHead>
                 <TableHead>Saisi par</TableHead>
                 <TableHead className="text-right">Montant</TableHead>
+                {canManage ? <TableHead>Actions</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -510,13 +604,38 @@ export function ExpenseManager({
                   <TableCell className="text-right font-semibold tabular-nums">
                     {formatCurrency(expense.amount)}
                   </TableCell>
+                  {canManage ? (
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          aria-label="Modifier"
+                          onClick={() => openEdit(expense)}
+                          size="icon"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          aria-label="Supprimer"
+                          disabled={isDeletingId === expense.id}
+                          onClick={() => void deleteExpense(expense)}
+                          size="icon"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
               {expenses.length === 0 ? (
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-slate-500"
-                    colSpan={6}
+                    colSpan={canManage ? 7 : 6}
                   >
                     Aucun frais ne correspond à ces filtres.
                   </TableCell>
@@ -526,6 +645,185 @@ export function ExpenseManager({
           </Table>
         </CardContent>
       </Card>
+
+      {editingExpense ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => setEditingExpense(null)}
+        >
+          <div
+            className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-institutional"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <h2 className="text-lg font-semibold text-primary">
+                Modifier la dépense
+              </h2>
+              <Button
+                aria-label="Fermer"
+                onClick={() => setEditingExpense(null)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <form className="space-y-5" onSubmit={submitEdit}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-expense-category">
+                    Catégorie de dépense
+                  </Label>
+                  <Select
+                    onValueChange={setEditCategoryId}
+                    value={editCategoryId}
+                  >
+                    <SelectTrigger id="edit-expense-category">
+                      <SelectValue placeholder="Choisir une catégorie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-expense-fencing-category">
+                    Catégorie de tireur
+                  </Label>
+                  <Select
+                    onValueChange={(value) =>
+                      setEditFencingCategory(
+                        value as FencingCategoryValue | "NONE",
+                      )
+                    }
+                    value={editFencingCategory}
+                  >
+                    <SelectTrigger id="edit-expense-fencing-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Non spécifiée</SelectItem>
+                      {fencingCategories.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {fencingCategoryLabels[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-expense-competition">
+                    Compétition{" "}
+                    <span className="font-normal text-slate-400">
+                      (facultatif)
+                    </span>
+                  </Label>
+                  <Select
+                    onValueChange={setEditCompetitionId}
+                    value={editCompetitionId}
+                  >
+                    <SelectTrigger id="edit-expense-competition">
+                      <SelectValue placeholder="Choisir une compétition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Aucune</SelectItem>
+                      {competitions.map((competition) => (
+                        <SelectItem key={competition.id} value={competition.id}>
+                          {competition.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-expense-amount">Montant</Label>
+                  <div className="relative">
+                    <Input
+                      className="pr-9"
+                      id="edit-expense-amount"
+                      min="0.01"
+                      onChange={(event) => setEditAmount(event.target.value)}
+                      placeholder="0,00"
+                      required
+                      step="0.01"
+                      type="number"
+                      value={editAmount}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-2.5 text-sm text-slate-500">
+                      €
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-expense-date">Date</Label>
+                <Input
+                  id="edit-expense-date"
+                  max={currentSeason?.endDate.slice(0, 10)}
+                  min={currentSeason?.startDate.slice(0, 10)}
+                  onChange={(event) => setEditDate(event.target.value)}
+                  required
+                  type="date"
+                  value={editDate}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-expense-description">Description</Label>
+                <textarea
+                  className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  id="edit-expense-description"
+                  maxLength={500}
+                  onChange={(event) =>
+                    setEditDescription(event.target.value)
+                  }
+                  placeholder="Détail du frais, personne concernée, trajet…"
+                  required
+                  value={editDescription}
+                />
+              </div>
+
+              {editError ? (
+                <p
+                  aria-live="polite"
+                  className="rounded-md border border-accent/20 bg-accent-50 px-3 py-2 text-sm text-accent-700"
+                  role="alert"
+                >
+                  {editError}
+                </p>
+              ) : null}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={() => setEditingExpense(null)}
+                  type="button"
+                  variant="outline"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  disabled={isEditSaving || !editCategoryId}
+                  type="submit"
+                >
+                  {isEditSaving
+                    ? "Enregistrement…"
+                    : "Enregistrer les modifications"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {detailExpense ? (
         <div
