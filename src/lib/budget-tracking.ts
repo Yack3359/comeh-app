@@ -8,7 +8,7 @@ function percentage(planned: number, spent: number) {
   return planned > 0 ? (spent / planned) * 100 : spent > 0 ? 100 : 0;
 }
 
-export async function getBudgetTracking(seasonId: string) {
+export async function getBudgetTracking(seasonId: string, categoryId?: string) {
   const [categories, expenseTotals, fiscalYears, expenses] = await Promise.all([
     prisma.budgetCategory.findMany({
       where: { seasonId },
@@ -41,7 +41,7 @@ export async function getBudgetTracking(seasonId: string) {
       },
     }),
     prisma.expense.findMany({
-      where: { seasonId },
+      where: { seasonId, ...(categoryId ? { categoryId } : {}) },
       select: {
         amount: true,
         date: true,

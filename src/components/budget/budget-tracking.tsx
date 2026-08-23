@@ -27,6 +27,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -82,6 +89,8 @@ export function BudgetTracking({
   dataVersion,
 }: BudgetTrackingProps) {
   const [tracking, setTracking] = useState<TrackingData | null>(null);
+  const [fiscalYearCategoryId, setFiscalYearCategoryId] =
+    useState<string>("ALL");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailCategory, setDetailCategory] = useState<{
@@ -113,9 +122,14 @@ export function BudgetTracking({
     setError(null);
 
     try {
+      const params = new URLSearchParams({ seasonId });
+      if (fiscalYearCategoryId !== "ALL") {
+        params.set("categoryId", fiscalYearCategoryId);
+      }
+
       setTracking(
         await requestJson<TrackingData>(
-          `/api/budget-tracking?seasonId=${encodeURIComponent(seasonId)}`,
+          `/api/budget-tracking?${params}`,
         ),
       );
     } catch (loadError) {
@@ -125,7 +139,7 @@ export function BudgetTracking({
     } finally {
       setIsLoading(false);
     }
-  }, [seasonId]);
+  }, [fiscalYearCategoryId, seasonId]);
 
   useEffect(() => {
     void loadTracking();
@@ -366,6 +380,15 @@ export function BudgetTracking({
             Dépenses affectées selon la date de chaque frais et les bornes des
             années civiles liées à la saison.
           </CardDescription>
+          {fiscalYearCategoryId !== "ALL" ? (
+            <p className="text-sm text-slate-500">
+              Filtré sur la catégorie «{" "}
+              {tracking.categories.find(
+                (category) => category.id === fiscalYearCategoryId,
+              )?.name}
+              {" "}»
+            </p>
+          ) : null}
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -403,7 +426,23 @@ export function BudgetTracking({
               Calculée à partir des dépenses enregistrées au moment du chargement.
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              onValueChange={setFiscalYearCategoryId}
+              value={fiscalYearCategoryId}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Toutes les catégories</SelectItem>
+                {tracking.categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button asChild size="sm" variant="outline">
               <a
                 download

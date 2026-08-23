@@ -18,7 +18,10 @@ export async function GET(request: Request) {
 
   try {
     const result = await runAsAuthenticatedUser(() =>
-      getBudgetTracking(parsedQuery.data.seasonId),
+      getBudgetTracking(
+        parsedQuery.data.seasonId,
+        parsedQuery.data.categoryId,
+      ),
     );
 
     if (result instanceof NextResponse) {

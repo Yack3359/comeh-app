@@ -5,6 +5,7 @@ const idSchema = z.string().trim().min(1, "Identifiant requis").max(64);
 
 export const seasonQuerySchema = z.object({
   seasonId: idSchema,
+  categoryId: idSchema.optional(),
 });
 
 export const budgetCategoryCreateSchema = z.object({
