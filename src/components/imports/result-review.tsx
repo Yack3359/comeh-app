@@ -1,6 +1,14 @@
 "use client";
 
-import { Check, ChevronDown, ChevronUp, Loader2, Save } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Pencil,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -133,6 +141,15 @@ export function ResultReview({
   );
   const [isChangingSeason, setIsChangingSeason] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
+  const [editingValidatedIndex, setEditingValidatedIndex] = useState<
+    number | null
+  >(null);
+  const [validatedEditSnapshot, setValidatedEditSnapshot] =
+    useState<ResultDraft | null>(null);
+  const [isSavingValidatedEdit, setIsSavingValidatedEdit] = useState(false);
+  const [deletedValidatedIndexes, setDeletedValidatedIndexes] = useState<
+    Set<number>
+  >(new Set());
 
   const validatedIndexes = useMemo(
     () => new Set(envelope.validatedRowIndexes),
@@ -355,6 +372,101 @@ export function ResultReview({
     }
   }
 
+  async function saveValidatedEdit(index: number) {
+    setError(null);
+
+    const draft = drafts[index];
+    const recordId = envelope.createdEntityIds?.[String(index)];
+    if (!draft || !recordId) {
+      setError(`Le résultat de la ligne ${index + 1} est introuvable.`);
+      return;
+    }
+    if (!draft.competitionId || !draft.athleteId) {
+      setError(
+        `Choisissez la compétition et l’athlète de la ligne ${index + 1}.`,
+      );
+      return;
+    }
+
+    let data;
+    if (draft.type === "bout") {
+      if (!draft.opponentAthleteId || !draft.won) {
+        setError(
+          `Choisissez l’adversaire et l’issue de la ligne ${index + 1}.`,
+        );
+        return;
+      }
+      data = {
+        type: "bout" as const,
+        competitionId: draft.competitionId,
+        participantType: "athlete" as const,
+        athleteId: draft.athleteId,
+        opponentAthleteId: draft.opponentAthleteId,
+        won: draft.won === "true",
+        scoreFor: draft.scoreFor || null,
+        scoreAgainst: draft.scoreAgainst || null,
+        round: draft.round,
+      };
+    } else {
+      if (!draft.rank) {
+        setError(`Indiquez le rang de classement de la ligne ${index + 1}.`);
+        return;
+      }
+      data = {
+        type: "ranking" as const,
+        competitionId: draft.competitionId,
+        participantType: "athlete" as const,
+        athleteId: draft.athleteId,
+        teamId: null,
+        rank: draft.rank,
+        seedRank: draft.seedRank || null,
+        poolRank: draft.poolRank || null,
+      };
+    }
+
+    setIsSavingValidatedEdit(true);
+    try {
+      await requestJson(`/api/results/${recordId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+      setEditingValidatedIndex(null);
+      setValidatedEditSnapshot(null);
+      await onValidated();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Impossible de modifier le résultat",
+      );
+    } finally {
+      setIsSavingValidatedEdit(false);
+    }
+  }
+
+  async function deleteValidatedResult(index: number, recordId: string) {
+    if (!window.confirm("Supprimer définitivement ce résultat ?")) {
+      return;
+    }
+
+    setError(null);
+    try {
+      await requestJson(`/api/results/${recordId}`, { method: "DELETE" });
+      setDeletedValidatedIndexes((current) => {
+        const updated = new Set(current);
+        updated.add(index);
+        return updated;
+      });
+      await onValidated();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Impossible de supprimer le résultat",
+      );
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
@@ -420,28 +532,75 @@ export function ResultReview({
 
       {drafts.map((draft, index) => {
         const isValidated = validatedIndexes.has(index);
-        if (isValidated) {
+        const isDeleted = deletedValidatedIndexes.has(index);
+        const isEditingValidated = editingValidatedIndex === index;
+        const recordId = envelope.createdEntityIds?.[String(index)];
+
+        if (isValidated && !isEditingValidated) {
           return (
             <div
-              className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3"
+              className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 ${
+                isDeleted
+                  ? "border-slate-200 bg-slate-50"
+                  : "border-emerald-200 bg-emerald-50"
+              }`}
               key={index}
             >
-              <span className="text-sm font-medium text-emerald-800">
+              <span
+                className={`min-w-0 text-sm font-medium ${
+                  isDeleted
+                    ? "text-slate-500 line-through"
+                    : "text-emerald-800"
+                }`}
+              >
                 Ligne {index + 1} · {summary(draft)}
               </span>
-              <Badge
-                className="border-emerald-200 bg-white text-emerald-800"
-                variant="outline"
-              >
-                <Check className="mr-1 h-3 w-3" />
-                Enregistrée
-              </Badge>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge
+                  className={
+                    isDeleted
+                      ? "border-slate-200 bg-white text-slate-600"
+                      : "border-emerald-200 bg-white text-emerald-800"
+                  }
+                  variant="outline"
+                >
+                  {isDeleted ? null : <Check className="mr-1 h-3 w-3" />}
+                  {isDeleted ? "Supprimée" : "Enregistrée"}
+                </Badge>
+                {!isDeleted && recordId ? (
+                  <>
+                    <Button
+                      aria-label="Modifier"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setValidatedEditSnapshot({ ...draft });
+                        setEditingValidatedIndex(index);
+                      }}
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      aria-label="Supprimer"
+                      className="h-8 w-8 text-accent-600 hover:text-accent-700"
+                      onClick={() => void deleteValidatedResult(index, recordId)}
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </div>
           );
         }
 
         const isCollapsed = collapsedIndexes.has(index);
-        if (isCollapsed) {
+        if (!isValidated && isCollapsed) {
           return (
             <div
               className="flex items-center justify-between gap-3 rounded-lg border bg-slate-50 px-4 py-3"
@@ -482,16 +641,18 @@ export function ResultReview({
                 {draft.dateHint ? (
                   <Badge variant="secondary">Date lue : {draft.dateHint}</Badge>
                 ) : null}
-                <Button
-                  aria-label={`Réduire le résultat ${index + 1}`}
-                  className="h-8 w-8"
-                  onClick={() => toggleCollapsed(index)}
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                >
-                  <ChevronUp className="h-4 w-4" />
-                </Button>
+                {!isValidated ? (
+                  <Button
+                    aria-label={`Réduire le résultat ${index + 1}`}
+                    className="h-8 w-8"
+                    onClick={() => toggleCollapsed(index)}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                ) : null}
               </div>
             </div>
 
@@ -737,17 +898,56 @@ export function ResultReview({
               ) : null}
             </div>
 
-            <div className="flex justify-end">
-              <Button
-                disabled={isValidating}
-                onClick={() => void validate([index])}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                Valider cette ligne
-              </Button>
+            <div className="flex justify-end gap-2">
+              {isValidated ? (
+                <>
+                  <Button
+                    disabled={isSavingValidatedEdit}
+                    onClick={() => {
+                      if (validatedEditSnapshot) {
+                        setDrafts((current) =>
+                          current.map((currentDraft, draftIndex) =>
+                            draftIndex === index
+                              ? validatedEditSnapshot
+                              : currentDraft,
+                          ),
+                        );
+                      }
+                      setEditingValidatedIndex(null);
+                      setValidatedEditSnapshot(null);
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    disabled={isSavingValidatedEdit}
+                    onClick={() => void saveValidatedEdit(index)}
+                    size="sm"
+                    type="button"
+                  >
+                    {isSavingValidatedEdit ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    Enregistrer les modifications
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  disabled={isValidating}
+                  onClick={() => void validate([index])}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Valider cette ligne
+                </Button>
+              )}
             </div>
           </div>
         );

@@ -1,9 +1,10 @@
 "use client";
 
-import { CalendarRange, Eye } from "lucide-react";
+import { CalendarRange, Download, Eye } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Tabs,
   TabsContent,
@@ -116,6 +117,17 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
                   ) : null}
                 </div>
               ) : null}
+              <Button
+                asChild
+                className="mt-3 w-full border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                size="sm"
+                variant="outline"
+              >
+                <a href="/api/budget-tracking/export-all" download>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exporter toutes les données (CSV)
+                </a>
+              </Button>
             </div>
           </div>
         </div>
