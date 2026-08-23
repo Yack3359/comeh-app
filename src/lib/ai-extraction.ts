@@ -90,7 +90,7 @@ async function extractStructured<T>(
 export type ExtractedExpense = {
   amount: string;
   date: string;
-  type: "hebergement" | "deplacement";
+  category: string;
   description: string;
   relatedEvent?: string;
   confidence: "high" | "medium" | "low";
@@ -113,10 +113,10 @@ const expenseExtractionTool: Anthropic.Tool = {
         type: "string",
         description: "Date de la dépense au format AAAA-MM-JJ.",
       },
-      type: {
+      category: {
         type: "string",
-        enum: ["hebergement", "deplacement"],
-        description: "Nature de la dépense.",
+        description:
+          'Catégorie budgétaire de la dépense. Choisis EXACTEMENT l\'une de ces valeurs : Repas, Hôtel, Transferts, Taxes aéroport, Taxi, Parking, Excédents bagages, Pénalité absence arbitre, Engagements, Change. "Transferts" couvre les trajets terrestres (train, bus, essence, péage, location de véhicule). "Engagements" couvre les frais d\'inscription à la compétition. Si aucune catégorie ne correspond clairement, laisse vide plutôt que de deviner.',
       },
       description: {
         type: "string",
@@ -139,7 +139,7 @@ const expenseExtractionTool: Anthropic.Tool = {
           "Informations ambiguës ou champs non trouvés, à signaler à l'utilisateur pour vérification manuelle.",
       },
     },
-    required: ["amount", "date", "type", "description", "confidence"],
+    required: ["amount", "date", "category", "description", "confidence"],
   },
 };
 
