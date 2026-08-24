@@ -24,6 +24,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { pickDefaultSeasonId } from "@/lib/season-utils";
 
 import { AthleteHistory } from "./athlete-history";
 import { AthleteManager } from "./athlete-manager";
@@ -57,7 +58,7 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
     void requestJson<Season[]>("/api/seasons")
       .then((data) => {
         setSeasons(data);
-        setSeasonId((current) => current || data[0]?.id || "");
+        setSeasonId((current) => current || pickDefaultSeasonId(data) || "");
       })
       .catch((loadError: unknown) => {
         setError(

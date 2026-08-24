@@ -11,6 +11,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { pickDefaultSeasonId } from "@/lib/season-utils";
 
 import { BudgetEditor } from "./budget-editor";
 import { BudgetTracking } from "./budget-tracking";
@@ -36,7 +37,7 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
     void requestJson<Season[]>("/api/seasons")
       .then((data) => {
         setSeasons(data);
-        setSeasonId((current) => current || data[0]?.id || "");
+        setSeasonId((current) => current || pickDefaultSeasonId(data) || "");
       })
       .catch((loadError: unknown) => {
         setError(
