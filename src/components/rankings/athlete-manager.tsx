@@ -9,7 +9,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,6 +95,7 @@ export function AthleteManager({
   onChanged,
   onViewStats,
 }: AthleteManagerProps) {
+  const formCardRef = useRef<HTMLDivElement>(null);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [form, setForm] = useState<AthleteForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -193,6 +194,7 @@ export function AthleteManager({
       club: athlete.club ?? "",
       pole: athlete.pole ?? "",
     });
+    formCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function deleteAthlete(athlete: Athlete) {
@@ -271,7 +273,7 @@ export function AthleteManager({
   return (
     <div className="space-y-5">
       {canManage ? (
-        <Card>
+        <Card ref={formCardRef}>
           <CardHeader>
             <CardTitle className="text-xl">
               {editingId ? "Modifier l’athlète" : "Ajouter un athlète"}

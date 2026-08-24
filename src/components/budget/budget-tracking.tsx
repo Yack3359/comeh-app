@@ -371,24 +371,42 @@ export function BudgetTracking({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            Répartition par année civile
-          </CardTitle>
-          <CardDescription>
-            Dépenses affectées selon la date de chaque frais et les bornes des
-            années civiles liées à la saison.
-          </CardDescription>
-          {fiscalYearCategoryId !== "ALL" ? (
-            <p className="text-sm text-slate-500">
-              Filtré sur la catégorie «{" "}
-              {tracking.categories.find(
-                (category) => category.id === fiscalYearCategoryId,
-              )?.name}
-              {" "}»
-            </p>
-          ) : null}
+        <CardHeader className="items-start gap-4 space-y-0 sm:flex-row sm:justify-between">
+          <div className="space-y-1.5">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <CalendarDays className="h-5 w-5 text-primary" />
+              Répartition par année civile
+            </CardTitle>
+            <CardDescription>
+              Dépenses affectées selon la date de chaque frais et les bornes des
+              années civiles liées à la saison.
+            </CardDescription>
+            {fiscalYearCategoryId !== "ALL" ? (
+              <p className="text-sm text-slate-500">
+                Filtré sur la catégorie «{" "}
+                {tracking.categories.find(
+                  (category) => category.id === fiscalYearCategoryId,
+                )?.name}
+                {" "}»
+              </p>
+            ) : null}
+          </div>
+          <Select
+            onValueChange={setFiscalYearCategoryId}
+            value={fiscalYearCategoryId}
+          >
+            <SelectTrigger className="w-[220px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Toutes les catégories</SelectItem>
+              {tracking.categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -427,22 +445,6 @@ export function BudgetTracking({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select
-              onValueChange={setFiscalYearCategoryId}
-              value={fiscalYearCategoryId}
-            >
-              <SelectTrigger className="w-[220px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Toutes les catégories</SelectItem>
-                {tracking.categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Button asChild size="sm" variant="outline">
               <a
                 download
