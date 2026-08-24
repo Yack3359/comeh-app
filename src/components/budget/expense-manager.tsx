@@ -1,7 +1,14 @@
 "use client";
 
-import { Download, Pencil, PlusCircle, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Download,
+  Paperclip,
+  Pencil,
+  PlusCircle,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   fencingCategories,
@@ -95,11 +102,14 @@ export function ExpenseManager({
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [fencingCategoryFilter, setFencingCategoryFilter] = useState("all");
+  const [competitionFilter, setCompetitionFilter] = useState("all");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [detailExpense, setDetailExpense] = useState<Expense | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editCategoryId, setEditCategoryId] = useState("");
@@ -110,9 +120,20 @@ export function ExpenseManager({
   const [editAmount, setEditAmount] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editAttachmentFile, setEditAttachmentFile] = useState<File | null>(
+    null,
+  );
   const [isEditSaving, setIsEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkEditing, setIsBulkEditing] = useState(false);
+  const [bulkCategoryId, setBulkCategoryId] = useState("UNCHANGED");
+  const [bulkCompetitionId, setBulkCompetitionId] = useState("UNCHANGED");
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   const currentSeason = useMemo(
     () => seasons.find((season) => season.id === seasonId),
@@ -162,16 +183,40 @@ export function ExpenseManager({
     if (fencingCategoryFilter !== "all") {
       params.set("fencingCategory", fencingCategoryFilter);
     }
+    if (competitionFilter !== "all") {
+      params.set("competitionId", competitionFilter);
+    }
 
-    setExpenses(await requestJson<Expense[]>(`/api/expenses?${params}`));
-  }, [categoryFilter, fencingCategoryFilter, seasonId]);
+    const data = await requestJson<Expense[]>(`/api/expenses?${params}`);
+    setExpenses(data);
+    setSelectedIds((current) => {
+      const availableIds = new Set(data.map((expense) => expense.id));
+      return new Set([...current].filter((id) => availableIds.has(id)));
+    });
+  }, [categoryFilter, competitionFilter, fencingCategoryFilter, seasonId]);
 
   useEffect(() => {
     setCategoryFilter("all");
     setFencingCategoryFilter("all");
+    setCompetitionFilter("all");
     setCompetitionId("NONE");
+    setSelectedIds(new Set());
     setDate(initialDate(currentSeason));
   }, [currentSeason]);
+
+  const selectedExpenseCount = useMemo(
+    () => expenses.filter((expense) => selectedIds.has(expense.id)).length,
+    [expenses, selectedIds],
+  );
+  const allExpensesSelected =
+    expenses.length > 0 && selectedExpenseCount === expenses.length;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate =
+        selectedExpenseCount > 0 && !allExpensesSelected;
+    }
+  }, [allExpensesSelected, selectedExpenseCount]);
 
   useEffect(() => {
     setError(null);
@@ -200,14 +245,38 @@ export function ExpenseManager({
     });
   }, [loadExpenses]);
 
+  async function uploadAttachment(expenseId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch(`/api/expenses/${expenseId}/attachment`, {
+      method: "POST",
+      body: formData,
+    });
+    const body = (await response.json().catch(() => null)) as
+      | Expense
+      | { error?: string }
+      | null;
+
+    if (!response.ok) {
+      throw new Error(
+        body && typeof body === "object" && "error" in body && body.error
+          ? body.error
+          : "Upload du justificatif impossible",
+      );
+    }
+
+    return body as Expense;
+  }
+
   async function createExpense(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsPending(true);
     setError(null);
     setMessage(null);
+    setWarning(null);
 
     try {
-      await requestJson("/api/expenses", {
+      const created = await requestJson<{ id: string }>("/api/expenses", {
         method: "POST",
         body: JSON.stringify({
           seasonId,
@@ -220,8 +289,25 @@ export function ExpenseManager({
           description,
         }),
       });
+      if (attachmentFile) {
+        try {
+          await uploadAttachment(created.id, attachmentFile);
+        } catch (uploadError) {
+          setWarning(
+            `Le frais a été créé, mais le justificatif n’a pas pu être ajouté : ${
+              uploadError instanceof Error
+                ? uploadError.message
+                : "upload impossible"
+            }`,
+          );
+        }
+      }
       setAmount("");
       setDescription("");
+      setAttachmentFile(null);
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = "";
+      }
       setMessage("Note de frais enregistrée.");
       await loadExpenses();
       onChanged();
@@ -243,6 +329,7 @@ export function ExpenseManager({
     setEditAmount(expense.amount);
     setEditDate(dateInputValue(new Date(expense.date)));
     setEditDescription(expense.description);
+    setEditAttachmentFile(null);
     setEditError(null);
     setEditingExpense(expense);
   }
@@ -256,9 +343,10 @@ export function ExpenseManager({
 
     setIsEditSaving(true);
     setEditError(null);
+    setWarning(null);
 
     try {
-      const updated = await requestJson<Expense>(
+      let updated = await requestJson<Expense>(
         `/api/expenses/${editingExpense.id}`,
         {
           method: "PATCH",
@@ -274,6 +362,22 @@ export function ExpenseManager({
           }),
         },
       );
+      if (editAttachmentFile) {
+        try {
+          updated = await uploadAttachment(
+            editingExpense.id,
+            editAttachmentFile,
+          );
+        } catch (uploadError) {
+          setWarning(
+            `La dépense a été modifiée, mais le justificatif n’a pas pu être ajouté : ${
+              uploadError instanceof Error
+                ? uploadError.message
+                : "upload impossible"
+            }`,
+          );
+        }
+      }
       setExpenses((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
@@ -305,6 +409,11 @@ export function ExpenseManager({
       setExpenses((current) =>
         current.filter((item) => item.id !== expense.id),
       );
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        next.delete(expense.id);
+        return next;
+      });
       onChanged();
     } catch (mutationError) {
       setError(
@@ -314,6 +423,90 @@ export function ExpenseManager({
       );
     } finally {
       setIsDeletingId(null);
+    }
+  }
+
+  function toggleExpense(expenseId: string, checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(expenseId);
+      } else {
+        next.delete(expenseId);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllExpenses(checked: boolean) {
+    setSelectedIds(
+      checked ? new Set(expenses.map((expense) => expense.id)) : new Set(),
+    );
+  }
+
+  function openBulkEdit() {
+    setBulkCategoryId("UNCHANGED");
+    setBulkCompetitionId("UNCHANGED");
+    setBulkError(null);
+    setIsBulkEditing(true);
+  }
+
+  async function submitBulkEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsBulkSaving(true);
+    setBulkError(null);
+
+    let failureCount = 0;
+    const expensesToUpdate = expenses.filter((expense) =>
+      selectedIds.has(expense.id),
+    );
+
+    for (const expense of expensesToUpdate) {
+      try {
+        await requestJson<Expense>(`/api/expenses/${expense.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            categoryId:
+              bulkCategoryId === "UNCHANGED"
+                ? expense.categoryId
+                : bulkCategoryId,
+            fencingCategory: expense.fencingCategory,
+            competitionId:
+              bulkCompetitionId === "UNCHANGED"
+                ? expense.competitionId
+                : bulkCompetitionId === "NONE"
+                  ? null
+                  : bulkCompetitionId,
+            amount: expense.amount,
+            date: dateInputValue(new Date(expense.date)),
+            description: expense.description,
+          }),
+        });
+      } catch {
+        failureCount += 1;
+      }
+    }
+
+    let reloadError: string | null = null;
+    try {
+      await loadExpenses();
+    } catch (loadError) {
+      reloadError =
+        loadError instanceof Error
+          ? loadError.message
+          : "Impossible de recharger les frais";
+    } finally {
+      onChanged();
+      setSelectedIds(new Set());
+      setIsBulkEditing(false);
+      if (failureCount > 0 || reloadError) {
+        const failureSummary =
+          failureCount > 0
+            ? `${failureCount} frais sur ${expensesToUpdate.length} n’ont pas pu être modifiés.`
+            : "";
+        setBulkError([failureSummary, reloadError].filter(Boolean).join(" "));
+      }
+      setIsBulkSaving(false);
     }
   }
 
@@ -448,6 +641,21 @@ export function ExpenseManager({
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="expense-attachment">
+                  Justificatif (facultatif)
+                </Label>
+                <Input
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                  id="expense-attachment"
+                  onChange={(event) =>
+                    setAttachmentFile(event.target.files?.[0] ?? null)
+                  }
+                  ref={attachmentInputRef}
+                  type="file"
+                />
+              </div>
+
               {error ? (
                 <p
                   aria-live="polite"
@@ -463,6 +671,15 @@ export function ExpenseManager({
                   className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
                 >
                   {message}
+                </p>
+              ) : null}
+              {warning ? (
+                <p
+                  aria-live="polite"
+                  className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                  role="alert"
+                >
+                  {warning}
                 </p>
               ) : null}
 
@@ -486,7 +703,7 @@ export function ExpenseManager({
             <CardTitle className="text-xl">Frais enregistrés</CardTitle>
             <CardDescription>
               Filtrez la saison depuis l’en-tête du module, puis affinez par
-              catégorie de dépense ou catégorie de tireur.
+              catégorie de dépense, catégorie de tireur ou compétition.
             </CardDescription>
           </div>
           <Button asChild size="sm" variant="outline">
@@ -499,7 +716,7 @@ export function ExpenseManager({
           </Button>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="expense-category-filter">
                 Catégorie de dépense
@@ -543,6 +760,27 @@ export function ExpenseManager({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="expense-competition-filter">Compétition</Label>
+              <Select
+                onValueChange={setCompetitionFilter}
+                value={competitionFilter}
+              >
+                <SelectTrigger id="expense-competition-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    Toutes les compétitions
+                  </SelectItem>
+                  {competitions.map((competition) => (
+                    <SelectItem key={competition.id} value={competition.id}>
+                      {competition.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {!canManage && error ? (
@@ -551,9 +789,44 @@ export function ExpenseManager({
             </p>
           ) : null}
 
+          {bulkError ? (
+            <p
+              className="rounded-md border border-accent/20 bg-accent-50 px-3 py-2 text-sm text-accent-700"
+              role="alert"
+            >
+              {bulkError}
+            </p>
+          ) : null}
+
+          {canManage && selectedExpenseCount > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="text-sm font-medium text-slate-700">
+                {selectedExpenseCount} sélectionnée(s)
+              </span>
+              <Button onClick={openBulkEdit} size="sm" type="button">
+                <Pencil className="mr-2 h-4 w-4" />
+                Modifier en masse
+              </Button>
+            </div>
+          ) : null}
+
           <Table>
             <TableHeader>
               <TableRow>
+                {canManage ? (
+                  <TableHead className="w-10">
+                    <input
+                      aria-label="Sélectionner tous les frais"
+                      checked={allExpensesSelected}
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                      onChange={(event) =>
+                        toggleAllExpenses(event.target.checked)
+                      }
+                      ref={selectAllRef}
+                      type="checkbox"
+                    />
+                  </TableHead>
+                ) : null}
                 <TableHead>Date</TableHead>
                 <TableHead>Détail</TableHead>
                 <TableHead>Catégorie de dépense</TableHead>
@@ -566,6 +839,19 @@ export function ExpenseManager({
             <TableBody>
               {expenses.map((expense) => (
                 <TableRow key={expense.id}>
+                  {canManage ? (
+                    <TableCell>
+                      <input
+                        aria-label={`Sélectionner le frais ${expense.description}`}
+                        checked={selectedIds.has(expense.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                        onChange={(event) =>
+                          toggleExpense(expense.id, event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell className="whitespace-nowrap">
                     {formatDate(expense.date)}
                   </TableCell>
@@ -581,6 +867,17 @@ export function ExpenseManager({
                       <p className="mt-1 line-clamp-1 text-xs text-slate-500">
                         {expense.description}
                       </p>
+                    ) : null}
+                    {expense.attachmentUrl ? (
+                      <a
+                        className="mt-1 inline-flex items-center text-xs font-medium text-primary underline-offset-2 hover:underline"
+                        href={`/api/expenses/${expense.id}/attachment`}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <Paperclip className="mr-1 h-3.5 w-3.5" />
+                        Voir le justificatif
+                      </a>
                     ) : null}
                   </TableCell>
                   <TableCell>{expense.category.name}</TableCell>
@@ -635,7 +932,7 @@ export function ExpenseManager({
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-slate-500"
-                    colSpan={canManage ? 7 : 6}
+                    colSpan={canManage ? 8 : 6}
                   >
                     Aucun frais ne correspond à ces filtres.
                   </TableCell>
@@ -793,6 +1090,20 @@ export function ExpenseManager({
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="edit-expense-attachment">
+                  Justificatif (facultatif)
+                </Label>
+                <Input
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                  id="edit-expense-attachment"
+                  onChange={(event) =>
+                    setEditAttachmentFile(event.target.files?.[0] ?? null)
+                  }
+                  type="file"
+                />
+              </div>
+
               {editError ? (
                 <p
                   aria-live="polite"
@@ -818,6 +1129,99 @@ export function ExpenseManager({
                   {isEditSaving
                     ? "Enregistrement…"
                     : "Enregistrer les modifications"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isBulkEditing ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => {
+            if (!isBulkSaving) {
+              setIsBulkEditing(false);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl bg-white p-5 shadow-institutional"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <h2 className="text-lg font-semibold text-primary">
+                Modifier les frais sélectionnés
+              </h2>
+              <Button
+                aria-label="Fermer"
+                disabled={isBulkSaving}
+                onClick={() => setIsBulkEditing(false)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <form className="space-y-5" onSubmit={submitBulkEdit}>
+              <div className="space-y-2">
+                <Label htmlFor="bulk-expense-category">
+                  Catégorie de dépense
+                </Label>
+                <Select
+                  onValueChange={setBulkCategoryId}
+                  value={bulkCategoryId}
+                >
+                  <SelectTrigger id="bulk-expense-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNCHANGED">Ne pas modifier</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-expense-competition">Compétition</Label>
+                <Select
+                  onValueChange={setBulkCompetitionId}
+                  value={bulkCompetitionId}
+                >
+                  <SelectTrigger id="bulk-expense-competition">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNCHANGED">Ne pas modifier</SelectItem>
+                    <SelectItem value="NONE">Aucune</SelectItem>
+                    {competitions.map((competition) => (
+                      <SelectItem key={competition.id} value={competition.id}>
+                        {competition.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  disabled={isBulkSaving}
+                  onClick={() => setIsBulkEditing(false)}
+                  type="button"
+                  variant="outline"
+                >
+                  Annuler
+                </Button>
+                <Button disabled={isBulkSaving} type="submit">
+                  {isBulkSaving
+                    ? "Application…"
+                    : `Appliquer à ${selectedExpenseCount} frais`}
                 </Button>
               </div>
             </form>
@@ -904,6 +1308,24 @@ export function ExpenseManager({
                 </dt>
                 <dd>{detailExpense.createdBy.name}</dd>
               </div>
+              {detailExpense.attachmentUrl ? (
+                <div>
+                  <dt className="text-xs font-semibold uppercase text-slate-400">
+                    Justificatif
+                  </dt>
+                  <dd>
+                    <a
+                      className="inline-flex items-center font-medium text-primary underline-offset-2 hover:underline"
+                      href={`/api/expenses/${detailExpense.id}/attachment`}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <Paperclip className="mr-1.5 h-4 w-4" />
+                      Voir le justificatif
+                    </a>
+                  </dd>
+                </div>
+              ) : null}
             </dl>
           </div>
         </div>

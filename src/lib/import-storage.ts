@@ -1,11 +1,12 @@
 import { put } from "@vercel/blob";
 
-export async function uploadImportFile(
+async function uploadPrivateFile(
+  directory: "imports" | "expenses",
   buffer: Buffer,
   fileName: string,
   contentType: string,
 ): Promise<string> {
-  const pathname = `imports/${fileName}`;
+  const pathname = `${directory}/${fileName}`;
 
   await put(pathname, buffer, {
     access: "private",
@@ -13,4 +14,20 @@ export async function uploadImportFile(
   });
 
   return pathname;
+}
+
+export async function uploadImportFile(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string,
+): Promise<string> {
+  return uploadPrivateFile("imports", buffer, fileName, contentType);
+}
+
+export async function uploadExpenseAttachment(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string,
+): Promise<string> {
+  return uploadPrivateFile("expenses", buffer, fileName, contentType);
 }

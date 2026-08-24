@@ -38,7 +38,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { Athlete, FencingCategoryValue, Season } from "./types";
+import type {
+  Athlete,
+  AthleteCategory,
+  FencingCategoryValue,
+  Season,
+} from "./types";
 import {
   athleteName,
   fencingCategoryLabels,
@@ -87,6 +92,38 @@ const emptyForm: AthleteForm = {
   club: "",
   pole: "",
 };
+
+export function groupConsecutiveCategorySeasons(
+  categorySeasons: AthleteCategory[],
+) {
+  const sortedCategorySeasons = [...categorySeasons].sort((left, right) =>
+    left.season.startDate.localeCompare(right.season.startDate),
+  );
+  const groups: AthleteCategory[][] = [];
+
+  for (const categorySeason of sortedCategorySeasons) {
+    const currentGroup = groups.at(-1);
+    if (
+      currentGroup &&
+      currentGroup[0]?.category === categorySeason.category
+    ) {
+      currentGroup.push(categorySeason);
+    } else {
+      groups.push([categorySeason]);
+    }
+  }
+
+  return groups.map((group) => {
+    const first = group[0];
+    const last = group.at(-1);
+    const seasonLabel =
+      group.length === 1
+        ? first.season.label
+        : `${first.season.label} – ${last?.season.label}`;
+
+    return `${seasonLabel} · ${formatFencingCategory(first.category)}`;
+  });
+}
 
 export function AthleteManager({
   seasons,
@@ -517,12 +554,15 @@ export function AthleteManager({
                   </TableCell>
                   <TableCell>
                     <div className="flex max-w-xs flex-wrap gap-1">
-                      {athlete.categorySeasons.slice(0, 3).map((item) => (
-                        <Badge key={item.seasonId} variant="outline">
-                          {item.season.label} ·{" "}
-                          {formatFencingCategory(item.category)}
-                        </Badge>
-                      ))}
+                      {groupConsecutiveCategorySeasons(
+                        athlete.categorySeasons,
+                      )
+                        .slice(0, 3)
+                        .map((label) => (
+                          <Badge key={label} variant="outline">
+                            {label}
+                          </Badge>
+                        ))}
                       {athlete.categorySeasons.length === 0 ? (
                         <span className="text-sm text-slate-400">Aucune</span>
                       ) : null}
