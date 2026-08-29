@@ -12,6 +12,13 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    outputFileTracingIncludes: {
+      "/api/expenses/export-ffe/route": [
+        "./src/lib/templates/ndf-ffe-template.xlsx",
+      ],
+    },
+  },
   async headers() {
     return [
       {

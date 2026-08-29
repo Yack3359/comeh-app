@@ -88,7 +88,7 @@ export async function GET(request: Request) {
     const competitionName = result.competition.isSelective
       ? `Coupe du Monde ${result.competition.name}`
       : result.competition.name;
-    const buffer = buildFfeExpenseReportWorkbook({
+    const buffer = await buildFfeExpenseReportWorkbook({
       competitionName,
       location: result.competition.location,
       date: result.competition.date,
