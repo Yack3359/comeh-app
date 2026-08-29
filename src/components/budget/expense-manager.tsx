@@ -9,7 +9,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -102,6 +101,7 @@ export function ExpenseManager({
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [groupByCompetition, setGroupByCompetition] = useState(false);
+  const [viewingGroupKey, setViewingGroupKey] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState("");
   const [fencingCategory, setFencingCategory] = useState<
     FencingCategoryValue | "NONE"
@@ -212,6 +212,7 @@ export function ExpenseManager({
     setCompetitionFilter("all");
     setCompetitionId("NONE");
     setSelectedIds(new Set());
+    setViewingGroupKey(null);
     setDate(initialDate(currentSeason));
   }, [currentSeason]);
 
@@ -987,27 +988,23 @@ export function ExpenseManager({
             <TableBody>
               {groupByCompetition && groupedExpenses
                 ? groupedExpenses.map(([key, group]) => (
-                    <Fragment key={key}>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableCell
-                          className="py-2"
-                          colSpan={canManage ? 8 : 6}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-primary">
-                              {group.competitionName}
-                            </span>
-                            <span className="text-sm text-slate-500">
-                              {group.expenses.length} frais ·{" "}
-                              {formatCurrency(String(group.total))}
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {group.expenses.map((expense) =>
-                        renderExpenseRow(expense),
-                      )}
-                    </Fragment>
+                    <TableRow
+                      className="cursor-pointer bg-slate-50 hover:bg-slate-100"
+                      key={key}
+                      onClick={() => setViewingGroupKey(key)}
+                    >
+                      <TableCell className="py-3" colSpan={canManage ? 8 : 6}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-primary underline-offset-2 hover:underline">
+                            {group.competitionName}
+                          </span>
+                          <span className="text-sm text-slate-500">
+                            {group.expenses.length} frais ·{" "}
+                            {formatCurrency(String(group.total))}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ))
                 : expenses.map((expense) => renderExpenseRow(expense))}
               {expenses.length === 0 ? (
@@ -1024,6 +1021,69 @@ export function ExpenseManager({
           </Table>
         </CardContent>
       </Card>
+
+      {viewingGroupKey ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => setViewingGroupKey(null)}
+        >
+          <div
+            className="max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-5 shadow-institutional"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-primary">
+                  {groupedExpenses?.find(
+                    ([key]) => key === viewingGroupKey,
+                  )?.[1].competitionName}
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {groupedExpenses?.find(
+                    ([key]) => key === viewingGroupKey,
+                  )?.[1].expenses.length}{" "}
+                  frais ·{" "}
+                  {formatCurrency(
+                    String(
+                      groupedExpenses?.find(
+                        ([key]) => key === viewingGroupKey,
+                      )?.[1].total ?? 0,
+                    ),
+                  )}
+                </p>
+              </div>
+              <Button
+                aria-label="Fermer"
+                onClick={() => setViewingGroupKey(null)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {canManage ? <TableHead className="w-10" /> : null}
+                  <TableHead>Date</TableHead>
+                  <TableHead>Détail</TableHead>
+                  <TableHead>Catégorie de dépense</TableHead>
+                  <TableHead>Catégorie de tireur</TableHead>
+                  <TableHead>Saisi par</TableHead>
+                  <TableHead className="text-right">Montant</TableHead>
+                  {canManage ? <TableHead>Actions</TableHead> : null}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {groupedExpenses
+                  ?.find(([key]) => key === viewingGroupKey)?.[1]
+                  .expenses.map((expense) => renderExpenseRow(expense))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      ) : null}
 
       {editingExpense ? (
         <div
