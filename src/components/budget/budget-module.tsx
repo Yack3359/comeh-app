@@ -18,6 +18,7 @@ import { BudgetTracking } from "./budget-tracking";
 import { CategoryManager } from "./category-manager";
 import { ExpenseImportPanel } from "./expense-import-panel";
 import { ExpenseManager } from "./expense-manager";
+import { FfeExportPanel } from "./ffe-export-panel";
 import { SeasonSelect } from "./season-select";
 import type { Season } from "./types";
 import { formatDate, requestJson } from "./utils";
@@ -143,11 +144,12 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
         <Tabs defaultValue="tracking">
           <TabsList
             className={`grid h-auto w-full grid-cols-2 gap-1 p-1 ${
-              canManage ? "sm:grid-cols-5" : "sm:grid-cols-4"
+              canManage ? "sm:grid-cols-6" : "sm:grid-cols-5"
             }`}
           >
             <TabsTrigger value="tracking">Suivi budgétaire</TabsTrigger>
             <TabsTrigger value="expenses">Notes de frais</TabsTrigger>
+            <TabsTrigger value="ffe-export">Export FFE</TabsTrigger>
             {canManage ? (
               <TabsTrigger value="import">Importer</TabsTrigger>
             ) : null}
@@ -167,6 +169,9 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
               seasonId={seasonId}
               seasons={seasons}
             />
+          </TabsContent>
+          <TabsContent className="mt-5" value="ffe-export">
+            <FfeExportPanel seasonId={seasonId} />
           </TabsContent>
           {canManage ? (
             <TabsContent className="mt-5" value="import">
