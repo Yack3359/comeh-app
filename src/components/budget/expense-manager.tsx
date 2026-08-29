@@ -129,6 +129,9 @@ export function ExpenseManager({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [bulkCategoryId, setBulkCategoryId] = useState("UNCHANGED");
+  const [bulkFencingCategory, setBulkFencingCategory] = useState<
+    FencingCategoryValue | "UNCHANGED" | "NONE"
+  >("UNCHANGED");
   const [bulkCompetitionId, setBulkCompetitionId] = useState("UNCHANGED");
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -446,6 +449,7 @@ export function ExpenseManager({
 
   function openBulkEdit() {
     setBulkCategoryId("UNCHANGED");
+    setBulkFencingCategory("UNCHANGED");
     setBulkCompetitionId("UNCHANGED");
     setBulkError(null);
     setIsBulkEditing(true);
@@ -470,7 +474,12 @@ export function ExpenseManager({
               bulkCategoryId === "UNCHANGED"
                 ? expense.categoryId
                 : bulkCategoryId,
-            fencingCategory: expense.fencingCategory,
+            fencingCategory:
+              bulkFencingCategory === "UNCHANGED"
+                ? expense.fencingCategory
+                : bulkFencingCategory === "NONE"
+                  ? null
+                  : bulkFencingCategory,
             competitionId:
               bulkCompetitionId === "UNCHANGED"
                 ? expense.competitionId
@@ -805,7 +814,7 @@ export function ExpenseManager({
               </span>
               <Button onClick={openBulkEdit} size="sm" type="button">
                 <Pencil className="mr-2 h-4 w-4" />
-                Modifier en masse
+                Modifier
               </Button>
             </div>
           ) : null}
@@ -1182,6 +1191,33 @@ export function ExpenseManager({
                     {categories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-expense-fencing-category">
+                  Catégorie de tireur
+                </Label>
+                <Select
+                  onValueChange={(value) =>
+                    setBulkFencingCategory(
+                      value as FencingCategoryValue | "UNCHANGED" | "NONE",
+                    )
+                  }
+                  value={bulkFencingCategory}
+                >
+                  <SelectTrigger id="bulk-expense-fencing-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNCHANGED">Ne pas modifier</SelectItem>
+                    <SelectItem value="NONE">Non spécifiée</SelectItem>
+                    {fencingCategories.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {fencingCategoryLabels[value]}
                       </SelectItem>
                     ))}
                   </SelectContent>
