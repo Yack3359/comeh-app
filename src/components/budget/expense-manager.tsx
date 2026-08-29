@@ -8,7 +8,14 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   fencingCategories,
@@ -94,6 +101,7 @@ export function ExpenseManager({
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [groupByCompetition, setGroupByCompetition] = useState(false);
   const [categoryId, setCategoryId] = useState("");
   const [fencingCategory, setFencingCategory] = useState<
     FencingCategoryValue | "NONE"
@@ -211,6 +219,33 @@ export function ExpenseManager({
     () => expenses.filter((expense) => selectedIds.has(expense.id)).length,
     [expenses, selectedIds],
   );
+  const groupedExpenses = useMemo(() => {
+    if (!groupByCompetition) return null;
+
+    const groups = new Map<
+      string,
+      { competitionName: string; expenses: Expense[]; total: number }
+    >();
+
+    for (const expense of expenses) {
+      const key = expense.competitionId ?? "NONE";
+      const name = expense.competition?.name ?? "Sans compétition";
+      const group = groups.get(key) ?? {
+        competitionName: name,
+        expenses: [],
+        total: 0,
+      };
+      group.expenses.push(expense);
+      group.total += Number(expense.amount);
+      groups.set(key, group);
+    }
+
+    return [...groups.entries()].sort(([keyA, groupA], [keyB, groupB]) => {
+      if (keyA === "NONE") return 1;
+      if (keyB === "NONE") return -1;
+      return groupA.competitionName.localeCompare(groupB.competitionName);
+    });
+  }, [expenses, groupByCompetition]);
   const allExpensesSelected =
     expenses.length > 0 && selectedExpenseCount === expenses.length;
 
@@ -519,6 +554,100 @@ export function ExpenseManager({
     }
   }
 
+  function renderExpenseRow(expense: Expense) {
+    return (
+      <TableRow key={expense.id}>
+        {canManage ? (
+          <TableCell>
+            <input
+              aria-label={`Sélectionner le frais ${expense.description}`}
+              checked={selectedIds.has(expense.id)}
+              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+              onChange={(event) =>
+                toggleExpense(expense.id, event.target.checked)
+              }
+              type="checkbox"
+            />
+          </TableCell>
+        ) : null}
+        <TableCell className="whitespace-nowrap">
+          {formatDate(expense.date)}
+        </TableCell>
+        <TableCell className="min-w-56">
+          <button
+            className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
+            onClick={() => setDetailExpense(expense)}
+            type="button"
+          >
+            {expense.competition?.name ?? expense.description}
+          </button>
+          {expense.competition ? (
+            <p className="mt-1 line-clamp-1 text-xs text-slate-500">
+              {expense.description}
+            </p>
+          ) : null}
+          {expense.attachmentUrl ? (
+            <a
+              className="mt-1 inline-flex items-center text-xs font-medium text-primary underline-offset-2 hover:underline"
+              href={`/api/expenses/${expense.id}/attachment`}
+              rel="noreferrer"
+              target="_blank"
+            >
+              <Paperclip className="mr-1 h-3.5 w-3.5" />
+              Voir le justificatif
+            </a>
+          ) : null}
+        </TableCell>
+        <TableCell>{expense.category.name}</TableCell>
+        <TableCell>
+          <Badge
+            className={
+              expense.fencingCategory
+                ? fencingCategoryStyles[expense.fencingCategory].badge
+                : "border-slate-200 bg-slate-50 text-slate-600"
+            }
+            variant="outline"
+          >
+            {expense.fencingCategory
+              ? fencingCategoryLabels[expense.fencingCategory]
+              : "Non spécifiée"}
+          </Badge>
+        </TableCell>
+        <TableCell className="whitespace-nowrap">
+          {expense.createdBy.name}
+        </TableCell>
+        <TableCell className="text-right font-semibold tabular-nums">
+          {formatCurrency(expense.amount)}
+        </TableCell>
+        {canManage ? (
+          <TableCell>
+            <div className="flex items-center gap-1">
+              <Button
+                aria-label="Modifier"
+                onClick={() => openEdit(expense)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                aria-label="Supprimer"
+                disabled={isDeletingId === expense.id}
+                onClick={() => void deleteExpense(expense)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </TableCell>
+        ) : null}
+      </TableRow>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {canManage ? (
@@ -715,14 +844,24 @@ export function ExpenseManager({
               catégorie de dépense, catégorie de tireur ou compétition.
             </CardDescription>
           </div>
-          <Button asChild size="sm" variant="outline">
-            <a
-              href={`/api/expenses/export?seasonId=${encodeURIComponent(seasonId)}`}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => setGroupByCompetition((current) => !current)}
+              size="sm"
+              type="button"
+              variant="outline"
             >
-              <Download className="mr-2 h-4 w-4" />
-              Exporter le détail (CSV)
-            </a>
-          </Button>
+              {groupByCompetition ? "Vue liste" : "Grouper par compétition"}
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <a
+                href={`/api/expenses/export?seasonId=${encodeURIComponent(seasonId)}`}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Exporter le détail (CSV)
+              </a>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -846,97 +985,31 @@ export function ExpenseManager({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {expenses.map((expense) => (
-                <TableRow key={expense.id}>
-                  {canManage ? (
-                    <TableCell>
-                      <input
-                        aria-label={`Sélectionner le frais ${expense.description}`}
-                        checked={selectedIds.has(expense.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
-                        onChange={(event) =>
-                          toggleExpense(expense.id, event.target.checked)
-                        }
-                        type="checkbox"
-                      />
-                    </TableCell>
-                  ) : null}
-                  <TableCell className="whitespace-nowrap">
-                    {formatDate(expense.date)}
-                  </TableCell>
-                  <TableCell className="min-w-56">
-                    <button
-                      className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
-                      onClick={() => setDetailExpense(expense)}
-                      type="button"
-                    >
-                      {expense.competition?.name ?? expense.description}
-                    </button>
-                    {expense.competition ? (
-                      <p className="mt-1 line-clamp-1 text-xs text-slate-500">
-                        {expense.description}
-                      </p>
-                    ) : null}
-                    {expense.attachmentUrl ? (
-                      <a
-                        className="mt-1 inline-flex items-center text-xs font-medium text-primary underline-offset-2 hover:underline"
-                        href={`/api/expenses/${expense.id}/attachment`}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        <Paperclip className="mr-1 h-3.5 w-3.5" />
-                        Voir le justificatif
-                      </a>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>{expense.category.name}</TableCell>
-                  <TableCell>
-                    <Badge
-                      className={
-                        expense.fencingCategory
-                          ? fencingCategoryStyles[expense.fencingCategory].badge
-                          : "border-slate-200 bg-slate-50 text-slate-600"
-                      }
-                      variant="outline"
-                    >
-                      {expense.fencingCategory
-                        ? fencingCategoryLabels[expense.fencingCategory]
-                        : "Non spécifiée"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {expense.createdBy.name}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">
-                    {formatCurrency(expense.amount)}
-                  </TableCell>
-                  {canManage ? (
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          aria-label="Modifier"
-                          onClick={() => openEdit(expense)}
-                          size="icon"
-                          type="button"
-                          variant="ghost"
+              {groupByCompetition && groupedExpenses
+                ? groupedExpenses.map(([key, group]) => (
+                    <Fragment key={key}>
+                      <TableRow className="bg-slate-50 hover:bg-slate-50">
+                        <TableCell
+                          className="py-2"
+                          colSpan={canManage ? 8 : 6}
                         >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          aria-label="Supprimer"
-                          disabled={isDeletingId === expense.id}
-                          onClick={() => void deleteExpense(expense)}
-                          size="icon"
-                          type="button"
-                          variant="ghost"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-              ))}
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-primary">
+                              {group.competitionName}
+                            </span>
+                            <span className="text-sm text-slate-500">
+                              {group.expenses.length} frais ·{" "}
+                              {formatCurrency(String(group.total))}
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {group.expenses.map((expense) =>
+                        renderExpenseRow(expense),
+                      )}
+                    </Fragment>
+                  ))
+                : expenses.map((expense) => renderExpenseRow(expense))}
               {expenses.length === 0 ? (
                 <TableRow>
                   <TableCell
