@@ -30,6 +30,12 @@ type BudgetModuleProps = {
 export function BudgetModule({ canManage }: BudgetModuleProps) {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [seasonId, setSeasonId] = useState("");
+  const [expensesView, setExpensesView] = useState<
+    "expenses" | "ffe-export" | "import"
+  >("expenses");
+  const [planningView, setPlanningView] = useState<
+    "budget" | "categories"
+  >("budget");
   const [categoryVersion, setCategoryVersion] = useState(0);
   const [dataVersion, setDataVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -142,61 +148,114 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
         </div>
       ) : (
         <Tabs defaultValue="tracking">
-          <TabsList
-            className={`grid h-auto w-full grid-cols-2 gap-1 p-1 ${
-              canManage ? "sm:grid-cols-6" : "sm:grid-cols-5"
-            }`}
-          >
+          <TabsList className="grid h-auto w-full grid-cols-3 gap-1 p-1">
             <TabsTrigger value="tracking">Suivi budgétaire</TabsTrigger>
-            <TabsTrigger value="expenses">Notes de frais</TabsTrigger>
-            <TabsTrigger value="ffe-export">Export FFE</TabsTrigger>
-            {canManage ? (
-              <TabsTrigger value="import">Importer</TabsTrigger>
-            ) : null}
-            <TabsTrigger value="budget">Prévisionnel</TabsTrigger>
-            <TabsTrigger value="categories">Catégories</TabsTrigger>
+            <TabsTrigger value="expenses-group">Dépenses</TabsTrigger>
+            <TabsTrigger value="planning-group">
+              Prévisionnel & catégories
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent className="mt-5" value="tracking">
             <BudgetTracking dataVersion={dataVersion} seasonId={seasonId} />
           </TabsContent>
-          <TabsContent className="mt-5" value="expenses">
-            <ExpenseManager
-              canManage={canManage}
-              categoryVersion={categoryVersion}
-              onChanged={() => setDataVersion((current) => current + 1)}
-              onSeasonChange={setSeasonId}
-              seasonId={seasonId}
-              seasons={seasons}
-            />
-          </TabsContent>
-          <TabsContent className="mt-5" value="ffe-export">
-            <FfeExportPanel seasonId={seasonId} />
-          </TabsContent>
-          {canManage ? (
-            <TabsContent className="mt-5" value="import">
+          <TabsContent className="mt-5" value="expenses-group">
+            <div className="mb-5 flex flex-wrap gap-2">
+              <Button
+                aria-pressed={expensesView === "expenses"}
+                className="rounded-full"
+                onClick={() => setExpensesView("expenses")}
+                size="sm"
+                type="button"
+                variant={expensesView === "expenses" ? "default" : "outline"}
+              >
+                Notes de frais
+              </Button>
+              <Button
+                aria-pressed={expensesView === "ffe-export"}
+                className="rounded-full"
+                onClick={() => setExpensesView("ffe-export")}
+                size="sm"
+                type="button"
+                variant={expensesView === "ffe-export" ? "default" : "outline"}
+              >
+                Export FFE
+              </Button>
+              {canManage ? (
+                <Button
+                  aria-pressed={expensesView === "import"}
+                  className="rounded-full"
+                  onClick={() => setExpensesView("import")}
+                  size="sm"
+                  type="button"
+                  variant={expensesView === "import" ? "default" : "outline"}
+                >
+                  Importer
+                </Button>
+              ) : null}
+            </div>
+
+            {expensesView === "expenses" ? (
+              <ExpenseManager
+                canManage={canManage}
+                categoryVersion={categoryVersion}
+                onChanged={() => setDataVersion((current) => current + 1)}
+                onSeasonChange={setSeasonId}
+                seasonId={seasonId}
+                seasons={seasons}
+              />
+            ) : expensesView === "ffe-export" ? (
+              <FfeExportPanel seasonId={seasonId} />
+            ) : canManage ? (
               <ExpenseImportPanel
                 onChanged={() => setDataVersion((current) => current + 1)}
                 seasons={seasons}
               />
-            </TabsContent>
-          ) : null}
-          <TabsContent className="mt-5" value="budget">
-            <BudgetEditor
-              canManage={canManage}
-              categoryVersion={categoryVersion}
-              onChanged={() => setDataVersion((current) => current + 1)}
-              seasonId={seasonId}
-              seasons={seasons}
-            />
+            ) : null}
           </TabsContent>
-          <TabsContent className="mt-5" value="categories">
-            <CategoryManager
-              canManage={canManage}
-              onChanged={categoriesChanged}
-              seasonId={seasonId}
-              version={categoryVersion}
-            />
+
+          <TabsContent className="mt-5" value="planning-group">
+            <div className="mb-5 flex flex-wrap gap-2">
+              <Button
+                aria-pressed={planningView === "budget"}
+                className="rounded-full"
+                onClick={() => setPlanningView("budget")}
+                size="sm"
+                type="button"
+                variant={planningView === "budget" ? "default" : "outline"}
+              >
+                Prévisionnel
+              </Button>
+              <Button
+                aria-pressed={planningView === "categories"}
+                className="rounded-full"
+                onClick={() => setPlanningView("categories")}
+                size="sm"
+                type="button"
+                variant={
+                  planningView === "categories" ? "default" : "outline"
+                }
+              >
+                Catégories
+              </Button>
+            </div>
+
+            {planningView === "budget" ? (
+              <BudgetEditor
+                canManage={canManage}
+                categoryVersion={categoryVersion}
+                onChanged={() => setDataVersion((current) => current + 1)}
+                seasonId={seasonId}
+                seasons={seasons}
+              />
+            ) : (
+              <CategoryManager
+                canManage={canManage}
+                onChanged={categoriesChanged}
+                seasonId={seasonId}
+                version={categoryVersion}
+              />
+            )}
           </TabsContent>
         </Tabs>
       )}

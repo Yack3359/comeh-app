@@ -84,6 +84,49 @@ function ProgressBar({
   );
 }
 
+function ConsumptionRing({ percentage }: { percentage: number }) {
+  const visualPercentage = Math.min(Math.max(percentage, 0), 100);
+  const radius = 38;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference * (1 - visualPercentage / 100);
+  const strokeColor =
+    percentage > 100
+      ? "#E30613"
+      : percentage >= 80
+        ? "#F59E0B"
+        : "#003B7A";
+
+  return (
+    <div className="relative h-24 w-24 shrink-0">
+      <svg aria-hidden="true" className="h-24 w-24" viewBox="0 0 96 96">
+        <circle
+          cx="48"
+          cy="48"
+          fill="none"
+          r={radius}
+          stroke="hsl(var(--muted))"
+          strokeWidth="10"
+        />
+        <circle
+          cx="48"
+          cy="48"
+          fill="none"
+          r={radius}
+          stroke={strokeColor}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          strokeWidth="10"
+          transform="rotate(-90 48 48)"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-sm font-bold tabular-nums text-slate-900">
+        {percentage.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %
+      </div>
+    </div>
+  );
+}
+
 export function BudgetTracking({
   seasonId,
   dataVersion,
@@ -471,16 +514,19 @@ export function BudgetTracking({
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="rounded-lg border bg-slate-50 p-4">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="font-semibold text-primary">Vue globale</span>
-              {tracking.percentage > 100 ? (
-                <Badge className="bg-accent" variant="destructive">
-                  Budget dépassé
-                </Badge>
-              ) : null}
+          <div className="flex items-center gap-4 rounded-lg border bg-slate-50 p-4">
+            <ConsumptionRing percentage={tracking.percentage} />
+            <div className="flex-1">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="font-semibold text-primary">Vue globale</span>
+                {tracking.percentage > 100 ? (
+                  <Badge className="bg-accent" variant="destructive">
+                    Budget dépassé
+                  </Badge>
+                ) : null}
+              </div>
+              <ProgressBar percentage={tracking.percentage} />
             </div>
-            <ProgressBar percentage={tracking.percentage} />
           </div>
 
           <Table>
