@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
+  fencingCategories,
   fencingCategoryLabels,
   fencingCategoryStyles,
   type FencingCategoryValue,
@@ -154,6 +155,19 @@ export function BudgetTracking({
     }>;
   } | null>(null);
   const [isFencingDetailLoading, setIsFencingDetailLoading] = useState(false);
+  const [isMissingFencingOpen, setIsMissingFencingOpen] = useState(false);
+  const [missingFencingExpenses, setMissingFencingExpenses] = useState<
+    Expense[]
+  >([]);
+  const [isMissingFencingLoading, setIsMissingFencingLoading] =
+    useState(false);
+  const [missingFencingSelections, setMissingFencingSelections] = useState<
+    Record<string, FencingCategoryValue | "">
+  >({});
+  const [isSavingMissingFencing, setIsSavingMissingFencing] = useState(false);
+  const [missingFencingError, setMissingFencingError] = useState<string | null>(
+    null,
+  );
 
   const loadTracking = useCallback(async () => {
     if (!seasonId) {
@@ -222,6 +236,97 @@ export function BudgetTracking({
       setFencingDetail({ fencingCategory, rows: [] });
     } finally {
       setIsFencingDetailLoading(false);
+    }
+  }
+
+  async function openMissingFencingDetail() {
+    setIsMissingFencingOpen(true);
+    setIsMissingFencingLoading(true);
+    setMissingFencingExpenses([]);
+    setMissingFencingSelections({});
+    setMissingFencingError(null);
+
+    try {
+      const params = new URLSearchParams({
+        seasonId,
+        fencingCategory: "NONE",
+      });
+      setMissingFencingExpenses(
+        await requestJson<Expense[]>(`/api/expenses?${params}`),
+      );
+    } catch (loadError) {
+      setMissingFencingError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Impossible de charger les frais",
+      );
+    } finally {
+      setIsMissingFencingLoading(false);
+    }
+  }
+
+  async function saveMissingFencingSelections() {
+    const expensesToUpdate = missingFencingExpenses.filter(
+      (expense) => missingFencingSelections[expense.id],
+    );
+
+    if (expensesToUpdate.length === 0) {
+      return;
+    }
+
+    setIsSavingMissingFencing(true);
+    setMissingFencingError(null);
+
+    let failureCount = 0;
+
+    try {
+      for (const expense of expensesToUpdate) {
+        try {
+          await requestJson<Expense>(`/api/expenses/${expense.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              categoryId: expense.categoryId,
+              fencingCategory: missingFencingSelections[expense.id],
+              competitionId: expense.competitionId,
+              amount: expense.amount,
+              date: expense.date.slice(0, 10),
+              description: expense.description,
+            }),
+          });
+        } catch {
+          failureCount += 1;
+        }
+      }
+
+      await loadTracking();
+
+      const params = new URLSearchParams({
+        seasonId,
+        fencingCategory: "NONE",
+      });
+      const remainingExpenses = await requestJson<Expense[]>(
+        `/api/expenses?${params}`,
+      );
+      setMissingFencingExpenses(remainingExpenses);
+      setMissingFencingSelections({});
+
+      if (remainingExpenses.length === 0) {
+        setIsMissingFencingOpen(false);
+      }
+
+      if (failureCount > 0) {
+        setMissingFencingError(
+          `${failureCount} frais sur ${expensesToUpdate.length} n’ont pas pu être modifiés.`,
+        );
+      }
+    } catch (saveError) {
+      setMissingFencingError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Impossible de recharger les frais",
+      );
+    } finally {
+      setIsSavingMissingFencing(false);
     }
   }
 
@@ -348,15 +453,14 @@ export function BudgetTracking({
               return (
                 <div
                   className={cn(
-                    "rounded-lg border p-5",
+                    "cursor-pointer rounded-lg border p-5 hover:shadow-sm",
                     styles.card,
-                    row.fencingCategory ? "cursor-pointer hover:shadow-sm" : "",
                   )}
                   key={row.fencingCategory ?? "NONE"}
-                  onClick={
-                    row.fencingCategory
-                      ? () => void openFencingCategoryDetail(row.fencingCategory!)
-                      : undefined
+                  onClick={() =>
+                    void (row.fencingCategory
+                      ? openFencingCategoryDetail(row.fencingCategory)
+                      : openMissingFencingDetail())
                   }
                 >
                   <div className="mb-4 flex items-center justify-between gap-3">
@@ -745,6 +849,112 @@ export function BudgetTracking({
                 </TableBody>
               </Table>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {isMissingFencingOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => setIsMissingFencingOpen(false)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-institutional"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-primary">
+                  Compléter les catégories de tireur manquantes
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Choisissez la catégorie de tireur pour chaque dépense
+                  ci-dessous, puis enregistrez.
+                </p>
+              </div>
+              <Button
+                aria-label="Fermer"
+                onClick={() => setIsMissingFencingOpen(false)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {isMissingFencingLoading ? (
+              <p className="py-8 text-center text-sm text-slate-500">
+                Chargement…
+              </p>
+            ) : missingFencingExpenses.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-500">
+                Toutes les dépenses de cette saison ont une catégorie de
+                tireur.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {missingFencingExpenses.map((expense) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                    key={expense.id}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-500">
+                        {formatDate(expense.date)}
+                      </p>
+                      <p className="font-medium text-slate-900">
+                        {expense.competition?.name ?? expense.description}
+                      </p>
+                      {expense.competition ? (
+                        <p className="text-xs text-slate-500">
+                          {expense.description}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 font-semibold tabular-nums text-slate-900">
+                        {formatCurrency(expense.amount)}
+                      </p>
+                    </div>
+                    <Select
+                      onValueChange={(value) =>
+                        setMissingFencingSelections((current) => ({
+                          ...current,
+                          [expense.id]: value as FencingCategoryValue,
+                        }))
+                      }
+                      value={missingFencingSelections[expense.id] ?? ""}
+                    >
+                      <SelectTrigger className="w-[200px] shrink-0">
+                        <SelectValue placeholder="Choisir…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {fencingCategories.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {fencingCategoryLabels[value]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            )}
+            {missingFencingError ? (
+              <p className="mt-4 text-sm text-accent-700">
+                {missingFencingError}
+              </p>
+            ) : null}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                disabled={
+                  isSavingMissingFencing ||
+                  !Object.values(missingFencingSelections).some(Boolean)
+                }
+                onClick={() => void saveMissingFencingSelections()}
+                type="button"
+              >
+                {isSavingMissingFencing ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
