@@ -8,10 +8,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import type { Season } from "./types";
+type SelectableSeason = {
+  id: string;
+  label: string;
+};
 
 type SeasonSelectProps = {
-  seasons: Season[];
+  seasons: SelectableSeason[];
   value: string;
   onValueChange: (value: string) => void;
   id?: string;
@@ -38,4 +41,3 @@ export function SeasonSelect({
     </Select>
   );
 }
-

@@ -1,23 +1,10 @@
 "use client";
 
-import {
-  CalendarRange,
-  Eye,
-  Medal,
-  Rows3,
-  Swords,
-  UsersRound,
-} from "lucide-react";
+import { Eye, Medal, Rows3, Swords, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { SeasonBanner } from "@/components/budget/season-banner";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Tabs,
   TabsContent,
@@ -112,32 +99,18 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
               </p>
             </div>
 
-            <div className="w-full rounded-xl bg-white/10 p-3 backdrop-blur-sm lg:w-72">
-              <label
-                className="mb-1.5 block text-xs font-semibold text-blue-100"
-                htmlFor="rankings-season"
-              >
-                Saison de travail
-              </label>
-              <Select onValueChange={setSeasonId} value={seasonId}>
-                <SelectTrigger id="rankings-season">
-                  <SelectValue placeholder="Choisir une saison" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seasons.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {season ? (
-                <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-100">
-                  <CalendarRange className="h-3.5 w-3.5" />
-                  {formatDate(season.startDate)} – {formatDate(season.endDate)}
-                </div>
-              ) : null}
-            </div>
+            <SeasonBanner
+              activeSeasonLabel={season?.label}
+              dateRangeLabel={
+                season
+                  ? `${formatDate(season.startDate)} – ${formatDate(season.endDate)}`
+                  : undefined
+              }
+              id="rankings-season"
+              onSeasonChange={setSeasonId}
+              seasonId={seasonId}
+              seasons={seasons}
+            />
           </div>
         </div>
       </section>

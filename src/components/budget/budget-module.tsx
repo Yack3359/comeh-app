@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarRange, Download, Eye } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ import { CategoryManager } from "./category-manager";
 import { ExpenseImportPanel } from "./expense-import-panel";
 import { ExpenseManager } from "./expense-manager";
 import { FfeExportPanel } from "./ffe-export-panel";
-import { SeasonSelect } from "./season-select";
+import { SeasonBanner } from "./season-banner";
 import type { Season } from "./types";
 import { formatDate, requestJson } from "./utils";
 
@@ -100,34 +100,28 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
               </p>
             </div>
 
-            <div className="w-full rounded-xl bg-white/10 p-3 backdrop-blur-sm lg:w-72">
-              <label
-                className="mb-1.5 block text-xs font-semibold text-blue-100"
-                htmlFor="module-season"
-              >
-                Saison de travail
-              </label>
-              <SeasonSelect
+            <div className="w-full space-y-3 lg:w-72">
+              <SeasonBanner
+                activeSeasonLabel={season?.label}
+                dateRangeLabel={
+                  season
+                    ? `${formatDate(season.startDate)} – ${formatDate(season.endDate)}${
+                        season.fiscalYears.length
+                          ? ` · exercices ${season.fiscalYears
+                              .map(({ label }) => label)
+                              .join(" / ")}`
+                          : ""
+                      }`
+                    : undefined
+                }
                 id="module-season"
-                onValueChange={setSeasonId}
+                onSeasonChange={setSeasonId}
+                seasonId={seasonId}
                 seasons={seasons}
-                value={seasonId}
               />
-              {season ? (
-                <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-100">
-                  <CalendarRange className="h-3.5 w-3.5" />
-                  {formatDate(season.startDate)} – {formatDate(season.endDate)}
-                  {season.fiscalYears.length ? (
-                    <span>
-                      · exercices{" "}
-                      {season.fiscalYears.map(({ label }) => label).join(" / ")}
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
               <Button
                 asChild
-                className="mt-3 w-full border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                className="w-full border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
                 size="sm"
                 variant="outline"
               >
