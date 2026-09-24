@@ -664,7 +664,9 @@ export function ExpenseManager({
             <form className="space-y-5" onSubmit={createExpense}>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="space-y-2">
-                  <Label htmlFor="expense-season">Saison</Label>
+                  <div className="flex min-h-9 items-end">
+                    <Label htmlFor="expense-season">Saison</Label>
+                  </div>
                   <SeasonSelect
                     id="expense-season"
                     onValueChange={onSeasonChange}
@@ -673,7 +675,11 @@ export function ExpenseManager({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expense-category">Catégorie de dépense</Label>
+                  <div className="flex min-h-9 items-end">
+                    <Label htmlFor="expense-category">
+                      Catégorie de dépense
+                    </Label>
+                  </div>
                   <Select onValueChange={setCategoryId} value={categoryId}>
                     <SelectTrigger id="expense-category">
                       <SelectValue placeholder="Choisir une catégorie" />
@@ -688,9 +694,11 @@ export function ExpenseManager({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expense-fencing-category">
-                    Catégorie de tireur
-                  </Label>
+                  <div className="flex min-h-9 items-end">
+                    <Label htmlFor="expense-fencing-category">
+                      Catégorie de tireur
+                    </Label>
+                  </div>
                   <Select
                     onValueChange={(value) =>
                       setFencingCategory(
@@ -713,12 +721,14 @@ export function ExpenseManager({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expense-competition">
-                    Compétition{" "}
-                    <span className="font-normal text-slate-400">
-                      (facultatif)
-                    </span>
-                  </Label>
+                  <div className="flex min-h-9 items-end">
+                    <Label htmlFor="expense-competition">
+                      Compétition{" "}
+                      <span className="font-normal text-slate-400">
+                        (facultatif)
+                      </span>
+                    </Label>
+                  </div>
                   <Select onValueChange={setCompetitionId} value={competitionId}>
                     <SelectTrigger id="expense-competition">
                       <SelectValue placeholder="Choisir une compétition" />
@@ -734,7 +744,9 @@ export function ExpenseManager({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expense-amount">Montant</Label>
+                  <div className="flex min-h-9 items-end">
+                    <Label htmlFor="expense-amount">Montant</Label>
+                  </div>
                   <div className="relative">
                     <Input
                       className="pr-9"

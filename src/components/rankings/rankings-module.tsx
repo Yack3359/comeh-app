@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Medal, Rows3, Swords, UsersRound } from "lucide-react";
+import { Eye, Rows3, Swords, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { SeasonBanner } from "@/components/budget/season-banner";
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/tabs";
 import { pickDefaultSeasonId } from "@/lib/season-utils";
 
-import { AthleteHistory } from "./athlete-history";
 import { AthleteManager } from "./athlete-manager";
 import { BulkResultEntry } from "./bulk-result-entry";
 import { CompetitionManager } from "./competition-manager";
@@ -122,7 +121,7 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
         </div>
       ) : (
         <Tabs onValueChange={setActiveTab} value={activeTab}>
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4 xl:grid-cols-8">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4 xl:grid-cols-7">
             <TabsTrigger value="athletes">Athlètes</TabsTrigger>
             <TabsTrigger value="teams">Équipes</TabsTrigger>
             <TabsTrigger value="competitions">Compétitions</TabsTrigger>
@@ -134,10 +133,6 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
             <TabsTrigger value="stats">
               <Swords className="mr-1.5 h-4 w-4" />
               Stats adversaires
-            </TabsTrigger>
-            <TabsTrigger value="history">
-              <Medal className="mr-1.5 h-4 w-4" />
-              Historique
             </TabsTrigger>
             <TabsTrigger value="selection">
               <UsersRound className="mr-1.5 h-4 w-4" />
@@ -193,9 +188,6 @@ export function RankingsModule({ canManage }: RankingsModuleProps) {
               seasons={seasons}
               version={dataVersion}
             />
-          </TabsContent>
-          <TabsContent className="mt-5" value="history">
-            <AthleteHistory version={dataVersion} />
           </TabsContent>
           <TabsContent className="mt-5" value="selection">
             <SelectionHelper seasonId={seasonId} version={dataVersion} />

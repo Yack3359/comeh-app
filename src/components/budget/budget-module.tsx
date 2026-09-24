@@ -151,7 +151,12 @@ export function BudgetModule({ canManage }: BudgetModuleProps) {
           </TabsList>
 
           <TabsContent className="mt-5" value="tracking">
-            <BudgetTracking dataVersion={dataVersion} seasonId={seasonId} />
+            <BudgetTracking
+              canManage={canManage}
+              dataVersion={dataVersion}
+              onBudgetChanged={categoriesChanged}
+              seasonId={seasonId}
+            />
           </TabsContent>
           <TabsContent className="mt-5" value="expenses-group">
             <div className="mb-5 flex flex-wrap gap-2">

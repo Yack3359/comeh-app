@@ -27,6 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -50,6 +51,8 @@ import { formatCurrency, formatDate, requestJson } from "./utils";
 type BudgetTrackingProps = {
   seasonId: string;
   dataVersion: number;
+  canManage: boolean;
+  onBudgetChanged: () => void;
 };
 
 function ProgressBar({
@@ -131,6 +134,8 @@ function ConsumptionRing({ percentage }: { percentage: number }) {
 export function BudgetTracking({
   seasonId,
   dataVersion,
+  canManage,
+  onBudgetChanged,
 }: BudgetTrackingProps) {
   const [tracking, setTracking] = useState<TrackingData | null>(null);
   const [fiscalYearCategoryId, setFiscalYearCategoryId] =
@@ -155,6 +160,16 @@ export function BudgetTracking({
     }>;
   } | null>(null);
   const [isFencingDetailLoading, setIsFencingDetailLoading] = useState(false);
+  const [fencingDetailEdits, setFencingDetailEdits] = useState<
+    Record<string, string>
+  >({});
+  const [isSavingFencingDetail, setIsSavingFencingDetail] = useState(false);
+  const [fencingDetailMessage, setFencingDetailMessage] = useState<
+    string | null
+  >(null);
+  const [fencingDetailError, setFencingDetailError] = useState<string | null>(
+    null,
+  );
   const [isMissingFencingOpen, setIsMissingFencingOpen] = useState(false);
   const [missingFencingExpenses, setMissingFencingExpenses] = useState<
     Expense[]
@@ -219,6 +234,8 @@ export function BudgetTracking({
   async function openFencingCategoryDetail(fencingCategory: FencingCategoryValue) {
     setFencingDetail({ fencingCategory, rows: [] });
     setIsFencingDetailLoading(true);
+    setFencingDetailMessage(null);
+    setFencingDetailError(null);
     try {
       const params = new URLSearchParams({ seasonId, fencingCategory });
       const rows = await requestJson<
@@ -232,10 +249,49 @@ export function BudgetTracking({
         }>
       >(`/api/budget-tracking/category-detail?${params}`);
       setFencingDetail({ fencingCategory, rows });
+      setFencingDetailEdits(
+        Object.fromEntries(rows.map((row) => [row.id, String(row.planned)])),
+      );
     } catch {
       setFencingDetail({ fencingCategory, rows: [] });
     } finally {
       setIsFencingDetailLoading(false);
+    }
+  }
+
+  async function saveFencingDetailEdits() {
+    if (!fencingDetail || !canManage) {
+      return;
+    }
+
+    setIsSavingFencingDetail(true);
+    setFencingDetailMessage(null);
+    setFencingDetailError(null);
+
+    try {
+      await requestJson("/api/budgets", {
+        method: "PUT",
+        body: JSON.stringify({
+          seasonId,
+          budgets: fencingDetail.rows.map((row) => ({
+            categoryId: row.id,
+            fencingCategory: fencingDetail.fencingCategory,
+            plannedAmount: fencingDetailEdits[row.id] || "0",
+          })),
+        }),
+      });
+      await openFencingCategoryDetail(fencingDetail.fencingCategory);
+      await loadTracking();
+      onBudgetChanged();
+      setFencingDetailMessage("Budget prévisionnel enregistré.");
+    } catch (saveError) {
+      setFencingDetailError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Enregistrement impossible",
+      );
+    } finally {
+      setIsSavingFencingDetail(false);
     }
   }
 
@@ -821,7 +877,28 @@ export function BudgetTracking({
                     <TableRow key={row.id}>
                       <TableCell className="font-medium">{row.name}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatCurrency(row.planned)}
+                        {canManage ? (
+                          <div className="relative">
+                            <Input
+                              className="pr-9 text-right tabular-nums"
+                              min="0"
+                              onChange={(event) =>
+                                setFencingDetailEdits((current) => ({
+                                  ...current,
+                                  [row.id]: event.target.value,
+                                }))
+                              }
+                              step="0.01"
+                              type="number"
+                              value={fencingDetailEdits[row.id] ?? ""}
+                            />
+                            <span className="pointer-events-none absolute right-3 top-2.5 text-sm text-slate-500">
+                              €
+                            </span>
+                          </div>
+                        ) : (
+                          formatCurrency(row.planned)
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatCurrency(row.spent)}
@@ -849,6 +926,29 @@ export function BudgetTracking({
                 </TableBody>
               </Table>
             )}
+            {canManage ? (
+              <>
+                {fencingDetailError ? (
+                  <div className="mt-4 rounded-md border border-accent/20 bg-accent-50 px-3 py-2 text-sm text-accent-700">
+                    {fencingDetailError}
+                  </div>
+                ) : null}
+                {fencingDetailMessage ? (
+                  <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                    {fencingDetailMessage}
+                  </div>
+                ) : null}
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    disabled={isSavingFencingDetail}
+                    onClick={() => void saveFencingDetailEdits()}
+                    type="button"
+                  >
+                    {isSavingFencingDetail ? "Enregistrement…" : "Enregistrer"}
+                  </Button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}
