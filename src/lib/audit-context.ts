@@ -33,6 +33,13 @@ export function runWithAuditContext<T>(
   return auditContext.run({ userId }, async () => await operation());
 }
 
+// Bulk operations write a single summary AuditLog themselves: per-row auditing
+// would multiply round trips and, being written outside the transaction,
+// would leave entries for rows that a rolled-back transaction never created.
+export function runWithoutAudit<T>(operation: () => Promise<T>): Promise<T> {
+  return auditContext.exit(() => operation());
+}
+
 export function getAuditContext() {
   return auditContext.getStore();
 }

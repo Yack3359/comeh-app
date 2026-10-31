@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 
 const writeRoles = [Role.ADMIN, Role.COMEH_MEMBER] as const;
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 export async function POST(request: Request) {
   try {
     return await runAsAuthenticatedUser(async userId => {

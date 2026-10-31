@@ -9,7 +9,8 @@ const db = vi.hoisted(() => ({
   season: { findMany: vi.fn() }, budgetSnapshot: { create: vi.fn() },
 }));
 const transaction = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: transaction } }));
+const auditLogCreate = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: transaction, auditLog: { create: auditLogCreate } } }));
 import { applyBudgetMatrix, inferredSeasonLabel } from "../budget-matrix-apply";
 
 const decimal = (value: number) => new Prisma.Decimal(value);
@@ -45,7 +46,7 @@ describe("matrix application", () => {
     const input = params();
     input.parsed.actions[0].federation = 4500;
     const result = await applyBudgetMatrix(input);
-    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 30000 });
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { maxWait: 20000, timeout: 120000 });
     const data = db.budgetAction.update.mock.calls[0][0].data;
     expect(data).toMatchObject({ status: "CANCELLED", revisedFederation: 4500, matrixLineNumber: 1, matrixOccurrence: 0, fencingCategories: ["U23"], plannedMonth: 10, seasonId: "manual-season" });
     for (const field of ["initialGross", "initialClubIncome", "initialFederation", "estimatedFederation", "revisionReason", "competitionId"]) expect(data).not.toHaveProperty(field);
@@ -65,6 +66,10 @@ describe("matrix application", () => {
       matrixLineNumber: 1, matrixOccurrence: 0, seasonId: "season-spring", fencingCategories: ["M20"], plannedMonth: 4, status: "BUDGETED",
     });
     expect(result).toMatchObject({ created: 1, missing: 1 });
+    expect(auditLogCreate).toHaveBeenLastCalledWith({ data: expect.objectContaining({
+      action: "IMPORT_MATRIX", entityType: "BudgetSnapshot", userId: "user",
+      diffJson: expect.objectContaining({ created: 1, missing: 1 }),
+    }) });
   });
   it("fills empty inferred fields and lets actuals replace a manual status with DONE", async () => {
     db.budgetAction.findMany.mockResolvedValue([{ ...existing(), fencingCategories: [], plannedMonth: null, seasonId: null }]);

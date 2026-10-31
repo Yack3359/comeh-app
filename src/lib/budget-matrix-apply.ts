@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { runWithoutAudit } from "@/lib/audit-context";
 import { prisma } from "@/lib/prisma";
 import type { ParsedMatrix } from "./budget-matrix";
 import { buildMatrixDiff, matrixActionValues, type MatrixOverrides } from "./budget-matrix-diff";
@@ -12,6 +13,17 @@ export function inferredSeasonLabel(fiscalYearLabel: string, month: number | nul
   return String(start % 100).padStart(2, "0") + "/" + String((start + 1) % 100).padStart(2, "0");
 }
 export async function applyBudgetMatrix({ parsed, fiscalYearId, asOfDate, overrides, userId, fileName, fileUrl }: {
+  parsed: ParsedMatrix; fiscalYearId: string; asOfDate: string; overrides?: MatrixOverrides;
+  userId: string; fileName: string; fileUrl?: string | null;
+}) {
+  const result = await runWithoutAudit(() => applyInTransaction({ parsed, fiscalYearId, asOfDate, overrides, userId, fileName, fileUrl }));
+  await prisma.auditLog.create({ data: {
+    userId, action: "IMPORT_MATRIX", entityType: "BudgetSnapshot", entityId: result.snapshotId,
+    diffJson: { fileName, asOfDate, created: result.created, updated: result.updated, unchanged: result.unchanged, missing: result.missing },
+  } });
+  return result;
+}
+function applyInTransaction({ parsed, fiscalYearId, asOfDate, overrides, userId, fileName, fileUrl }: {
   parsed: ParsedMatrix; fiscalYearId: string; asOfDate: string; overrides?: MatrixOverrides;
   userId: string; fileName: string; fileUrl?: string | null;
 }) {
@@ -74,5 +86,5 @@ export async function applyBudgetMatrix({ parsed, fiscalYearId, asOfDate, overri
       updated: diff.actions.filter(action => action.kind === "updated").length,
       unchanged: diff.actions.filter(action => action.kind === "unchanged").length, missing: diff.missingActions.length,
     };
-  }, { timeout: 30000 });
+  }, { maxWait: 20000, timeout: 120000 });
 }
