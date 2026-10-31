@@ -71,6 +71,7 @@ enum ImportStatus {
 }
 
 model User {
+  budgetSnapshots BudgetSnapshot[]
   id             String          @id @default(cuid())
   email          String          @unique
   passwordHash   String          @map("password_hash")
@@ -124,6 +125,7 @@ model AuditLog {
 }
 
 model Season {
+  budgetActions BudgetAction[]
   id                     String                  @id @default(cuid())
   label                  String                  @unique
   startDate              DateTime                @map("start_date") @db.Date
@@ -140,6 +142,9 @@ model Season {
 }
 
 model FiscalYear {
+  restitutionAmount Decimal @default(0) @map("restitution_amount") @db.Decimal(12, 2)
+  budgetPosts BudgetPost[]
+  budgetSnapshots BudgetSnapshot[]
   id        String   @id @default(cuid())
   label     String   @unique
   startDate DateTime @map("start_date") @db.Date
@@ -283,6 +288,7 @@ model TeamMember {
 }
 
 model Competition {
+  budgetActions BudgetAction[]
   id          String           @id @default(cuid())
   name        String
   location    String
@@ -344,4 +350,97 @@ model ImportBatch {
   @@index([userId, createdAt])
   @@index([status])
   @@map("import_batches")
+}
+
+enum BudgetPostKind {
+  OPERATING     @map("fonctionnement")
+  TRAINING_CAMP @map("stage")
+  COMPETITION   @map("competition")
+  OTHER         @map("autre")
+}
+
+enum BudgetActionStatus {
+  OPTION     @map("option")
+  BUDGETED   @map("budgetee")
+  COMMITTED  @map("engagee")
+  DONE       @map("realisee")
+  CANCELLED  @map("annulee")
+  UNBUDGETED @map("hors_budget")
+}
+
+enum BudgetActionOrigin {
+  RENEWED @map("reconduite")
+  NEW     @map("nouvelle")
+}
+
+model BudgetPost {
+  id           String         @id @default(cuid())
+  fiscalYearId String         @map("fiscal_year_id")
+  code         String
+  label        String
+  kind         BudgetPostKind @default(OTHER)
+  sortOrder    Int            @default(0) @map("sort_order")
+  fiscalYear   FiscalYear     @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  actions      BudgetAction[]
+
+  @@unique([fiscalYearId, code])
+  @@map("budget_posts")
+}
+
+model BudgetAction {
+  id                  String              @id @default(cuid())
+  postId              String              @map("post_id")
+  label               String
+  matrixKey           String?             @map("matrix_key")
+  matrixLineNumber    Int?                @map("matrix_line_number")
+  matrixOccurrence    Int?                @map("matrix_occurrence")
+  origin              BudgetActionOrigin?
+  status              BudgetActionStatus  @default(BUDGETED)
+  includedInBudget    Boolean             @default(true) @map("included_in_budget")
+  proposedSaving      Boolean             @default(false) @map("proposed_saving")
+  fencingCategories   FencingCategory[]   @default([]) @map("fencing_categories")
+  plannedMonth        Int?                @map("planned_month")
+  seasonId            String?             @map("season_id")
+  competitionId       String?             @map("competition_id")
+  initialGross        Decimal             @default(0) @map("initial_gross") @db.Decimal(12, 2)
+  initialClubIncome   Decimal             @default(0) @map("initial_club_income") @db.Decimal(12, 2)
+  initialFederation   Decimal             @default(0) @map("initial_federation") @db.Decimal(12, 2)
+  revisedGross        Decimal             @default(0) @map("revised_gross") @db.Decimal(12, 2)
+  revisedClubIncome   Decimal             @default(0) @map("revised_club_income") @db.Decimal(12, 2)
+  revisedFederation   Decimal             @default(0) @map("revised_federation") @db.Decimal(12, 2)
+  revisionReason      String?             @map("revision_reason")
+  previousYearAmount  Decimal?            @map("previous_year_amount") @db.Decimal(12, 2)
+  estimatedFederation Decimal?            @map("estimated_federation") @db.Decimal(12, 2)
+  actualGross         Decimal?            @map("actual_gross") @db.Decimal(12, 2)
+  actualClubIncome    Decimal?            @map("actual_club_income") @db.Decimal(12, 2)
+  actualFederation    Decimal?            @map("actual_federation") @db.Decimal(12, 2)
+  notes               String?
+  sortOrder           Int                 @default(0) @map("sort_order")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  post                BudgetPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  season              Season?             @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  competition         Competition?        @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+
+  @@index([postId])
+  @@index([status])
+  @@index([seasonId])
+  @@index([competitionId])
+  @@map("budget_actions")
+}
+
+model BudgetSnapshot {
+  id             String     @id @default(cuid())
+  fiscalYearId   String     @map("fiscal_year_id")
+  asOfDate       DateTime   @map("as_of_date") @db.Date
+  sourceFileName String     @map("source_file_name")
+  fileUrl        String?    @map("file_url")
+  importedById   String     @map("imported_by")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  data           Json
+  fiscalYear     FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  importedBy     User       @relation(fields: [importedById], references: [id], onDelete: Restrict)
+
+  @@index([fiscalYearId, asOfDate])
+  @@map("budget_snapshots")
 }

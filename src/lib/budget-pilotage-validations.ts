@@ -1,0 +1,42 @@
+import { BudgetActionStatus, FencingCategory } from "@prisma/client";
+import { z } from "zod";
+
+const id = z.string().trim().min(1, "Identifiant requis").max(64);
+export const pilotageParamsSchema = z.object({ id });
+export const fiscalYearLabelSchema = z.string().regex(/^20\d{2}$/, "Exercice invalide");
+export const pilotageQuerySchema = z.object({ fiscalYear: fiscalYearLabelSchema.optional() });
+export const previewFieldsSchema = z.object({ fiscalYearLabel: fiscalYearLabelSchema.optional() });
+const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide").refine(value => {
+  const parsed = new Date(value + "T00:00:00.000Z");
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}, "Date invalide");
+export const matrixApplySchema = z.object({
+  fiscalYearLabel: fiscalYearLabelSchema, asOfDate: date,
+  overrides: z.record(z.string().regex(/^[1-9]\d*$/, "Numéro de ligne invalide"), id.nullable()).optional(),
+}).strict();
+const amount = z.number().finite().min(0).max(9_999_999_999.99).multipleOf(0.01, "Deux décimales au maximum");
+const shared = {
+  label: z.string().trim().min(1, "Libellé requis").max(1000),
+  status: z.nativeEnum(BudgetActionStatus),
+  revisedGross: amount, revisedClubIncome: amount, revisedFederation: amount,
+  estimatedFederation: amount.nullable(), plannedMonth: z.number().int().min(1).max(12).nullable(),
+  fencingCategories: z.array(z.nativeEnum(FencingCategory)).max(6).refine(values => new Set(values).size === values.length, "Catégories dupliquées"),
+  notes: z.string().max(10000).nullable(), competitionId: id.nullable(),
+};
+export const budgetActionCreateSchema = z.object({
+  ...shared, postId: id, status: shared.status.default("UNBUDGETED"),
+  revisedGross: amount.default(0), revisedClubIncome: amount.default(0), revisedFederation: amount.default(0),
+  estimatedFederation: shared.estimatedFederation.optional(), plannedMonth: shared.plannedMonth.optional(),
+  fencingCategories: shared.fencingCategories.default([]), notes: shared.notes.optional(), competitionId: shared.competitionId.optional(),
+}).strict();
+export const budgetActionUpdateSchema = z.object({
+  ...shared, includedInBudget: z.boolean(), revisionReason: z.string().trim().min(1, "Motif de révision requis").max(2000),
+}).partial().strict().refine(value => Object.keys(value).length > 0, "Aucune modification");
+export const restitutionUpdateSchema = z.object({ restitutionAmount: amount }).strict();
+export const revisedAmountFields = ["revisedGross", "revisedClubIncome", "revisedFederation"] as const;
+export function requiresRevisionReason(
+  current: Record<typeof revisedAmountFields[number], number>,
+  update: z.infer<typeof budgetActionUpdateSchema>,
+): boolean {
+  return revisedAmountFields.some(field => update[field] !== undefined && update[field] !== current[field]) && !update.revisionReason;
+}
