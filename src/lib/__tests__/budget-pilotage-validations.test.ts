@@ -9,6 +9,16 @@ describe("pilotage API validation", () => {
       expect(budgetActionUpdateSchema.safeParse({ [field]: 50 }).success).toBe(false);
     }
   });
+  it("accepts nullable commission comments up to 10000 characters on create and update", () => {
+    for (const comment of [null, "", "Décision de la commission", "x".repeat(10000)]) {
+      expect(budgetActionCreateSchema.parse({ postId: "post", label: "Action", comment }).comment).toBe(comment);
+      expect(budgetActionUpdateSchema.parse({ comment })).toEqual({ comment });
+    }
+    for (const comment of [42, "x".repeat(10001)]) {
+      expect(budgetActionCreateSchema.safeParse({ postId: "post", label: "Action", comment }).success).toBe(false);
+      expect(budgetActionUpdateSchema.safeParse({ comment }).success).toBe(false);
+    }
+  });
   it("requires a revision reason only when a revised amount really changes", () => {
     const current = { revisedGross: 100, revisedClubIncome: 10, revisedFederation: 90 };
     expect(requiresRevisionReason(current, { revisedFederation: 90 })).toBe(false);

@@ -21,13 +21,13 @@ const shared = {
   revisedGross: amount, revisedClubIncome: amount, revisedFederation: amount,
   estimatedFederation: amount.nullable(), plannedMonth: z.number().int().min(1).max(12).nullable(),
   fencingCategories: z.array(z.nativeEnum(FencingCategory)).max(6).refine(values => new Set(values).size === values.length, "Catégories dupliquées"),
-  notes: z.string().max(10000).nullable(), competitionId: id.nullable(),
+  notes: z.string().max(10000).nullable(), comment: z.string().max(10000).nullable(), competitionId: id.nullable(),
 };
 export const budgetActionCreateSchema = z.object({
   ...shared, postId: id, status: shared.status.default("UNBUDGETED"),
   revisedGross: amount.default(0), revisedClubIncome: amount.default(0), revisedFederation: amount.default(0),
   estimatedFederation: shared.estimatedFederation.optional(), plannedMonth: shared.plannedMonth.optional(),
-  fencingCategories: shared.fencingCategories.default([]), notes: shared.notes.optional(), competitionId: shared.competitionId.optional(),
+  fencingCategories: shared.fencingCategories.default([]), notes: shared.notes.optional(), comment: shared.comment.optional(), competitionId: shared.competitionId.optional(),
 }).strict();
 export const budgetActionUpdateSchema = z.object({
   adjustmentFederation: z.number().finite().min(-9_999_999_999.99).max(9_999_999_999.99).multipleOf(0.01, "Deux décimales au maximum"),

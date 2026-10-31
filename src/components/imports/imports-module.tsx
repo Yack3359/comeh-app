@@ -4,12 +4,6 @@ import { FileSearch, Loader2, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 
 import { ImportBatchCard } from "./import-batch-card";
 import { UploadPanel } from "./upload-panel";
@@ -87,8 +81,8 @@ export function ImportsModule() {
                 Extraire, relire, puis enregistrer
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
-                Les documents restent privés. Aucune dépense ni aucun résultat
-                n’est créé avant votre validation explicite.
+                Les documents restent privés. Aucune dépense
+                n’est créée avant votre validation explicite.
               </p>
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-white/10 px-4 py-3 text-sm text-blue-50">
@@ -113,26 +107,11 @@ export function ImportsModule() {
         </p>
       ) : null}
 
-      <Tabs defaultValue="expense">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1">
-          <TabsTrigger value="expense">Notes de frais</TabsTrigger>
-          <TabsTrigger value="result">Résultats sportifs</TabsTrigger>
-        </TabsList>
-        <TabsContent className="mt-5" value="expense">
-          <UploadPanel
-            onUploaded={refresh}
-            seasons={seasons}
-            target="expense"
-          />
-        </TabsContent>
-        <TabsContent className="mt-5" value="result">
-          <UploadPanel
-            onUploaded={refresh}
-            seasons={seasons}
-            target="result"
-          />
-        </TabsContent>
-      </Tabs>
+      <UploadPanel
+        onUploaded={refresh}
+        seasons={seasons}
+        target="expense"
+      />
 
       <section className="space-y-4">
         <div>

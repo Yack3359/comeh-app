@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { computeActionFigures, type FiscalYearSummary, type PilotageAction, type VigilancePoint } from "./budget-pilotage";
 import { categoryLabels, flagLabels, monthLabel, statusLabels } from "./budget-pilotage-labels";
 
-type ExportAction = PilotageAction & { postCode: string; fencingCategories: Array<keyof typeof categoryLabels>; notes: string | null };
+type ExportAction = PilotageAction & { postCode: string; fencingCategories: Array<keyof typeof categoryLabels>; notes: string | null; comment: string | null };
 export function buildPilotageWorkbook({ summary, actions, vigilance }: {
   summary: FiscalYearSummary; actions: ExportAction[]; vigilance: VigilancePoint[];
 }) {
@@ -24,13 +24,13 @@ export function buildPilotageWorkbook({ summary, actions, vigilance }: {
   const margin = synthesis.addRow(["Marge globale"]);
   margin.getCell(2).value = { formula: "SUM(G" + total.number + ",-B" + restitution.number + ")", result: summary.globalMargin };
   const details = workbook.addWorksheet("Actions");
-  details.addRow(["Poste", "Libellé", "Statut", "Mois", "Catégories", "Budget initial FFE", "Budget révisé FFE", "Rallonge / ajustement FFE", "Budget total FFE", "Réalisé FFE", "Écart", "Atterrissage FFE", "Brut budgété", "Recettes budgétées", "Brut réalisé", "Recettes réalisées", "Notes"]);
+  details.addRow(["Poste", "Libellé", "Statut", "Mois", "Catégories", "Budget initial FFE", "Budget révisé FFE", "Rallonge / ajustement FFE", "Budget total FFE", "Réalisé FFE", "Écart", "Atterrissage FFE", "Brut budgété", "Recettes budgétées", "Brut réalisé", "Recettes réalisées", "Notes", "Commentaire"]);
   for (const action of actions) {
     const figures = computeActionFigures(action);
     details.addRow([action.postCode, action.label, statusLabels[action.status], monthLabel(action.plannedMonth),
       action.fencingCategories.map(category => categoryLabels[category]).join(", "),
       action.initialFederation, action.revisedFederation, action.adjustmentFederation, figures.budget, figures.actual, figures.variance, figures.landing,
-      action.revisedGross, action.revisedClubIncome, action.actualGross, action.actualClubIncome, action.notes]);
+      action.revisedGross, action.revisedClubIncome, action.actualGross, action.actualClubIncome, action.notes, action.comment]);
   }
   const actionTotals = details.addRow(["Total"]);
   for (let column = 6; column <= 16; column++) {
@@ -52,6 +52,7 @@ export function buildPilotageWorkbook({ summary, actions, vigilance }: {
   synthesis.getColumn(8).width = 44;
   details.getColumn(2).width = 52;
   details.getColumn(17).width = 60;
+  details.getColumn(18).width = 60;
   alerts.getColumn(3).width = 110;
   for (let column = 2; column <= 7; column++) synthesis.getColumn(column).numFmt = '# ##0 €';
   for (let column = 6; column <= 16; column++) details.getColumn(column).numFmt = '# ##0 €';

@@ -25,7 +25,7 @@ export async function PATCH(request: Request, context: Context) {
         }
         validateAdjustment(serializeBudgetAction(current), body.data);
         return tx.budgetAction.update({ where: { id: current.id }, data: {
-          ...body.data, ...(body.data.label !== undefined ? { matrixKey: normalizeMatrixLabel(body.data.label) } : {}),
+          ...body.data, ...(body.data.label !== undefined && current.matrixKey !== null ? { matrixKey: normalizeMatrixLabel(body.data.label) } : {}),
         } });
       });
       return NextResponse.json(serializeBudgetAction(action));

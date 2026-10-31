@@ -12,6 +12,7 @@ const transaction = vi.hoisted(() => vi.fn());
 const auditLogCreate = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: transaction, auditLog: { create: auditLogCreate } } }));
 import { applyBudgetMatrix, inferredSeasonLabel } from "../budget-matrix-apply";
+import { matrixActionValues } from "../budget-matrix-diff";
 
 const decimal = (value: number) => new Prisma.Decimal(value);
 const existing = () => ({
@@ -22,7 +23,7 @@ const existing = () => ({
   revisedGross: decimal(5000), revisedClubIncome: decimal(1000), revisedFederation: decimal(4000),
   adjustmentFederation: decimal(0), adjustmentReason: null,
   actualGross: null, actualClubIncome: null, actualFederation: null, estimatedFederation: decimal(1200),
-  previousYearAmount: decimal(3500), revisionReason: "Décision manuelle", notes: null,
+  previousYearAmount: decimal(3500), revisionReason: "Décision manuelle", notes: null, comment: "Décision de la commission",
   fencingCategories: ["U23"], plannedMonth: 10, seasonId: "manual-season", competitionId: "manual-competition",
   sortOrder: 0, createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01"),
   post: { id: "post-b", code: "B", label: "Stages M20-M17", kind: "TRAINING_CAMP" },
@@ -56,6 +57,23 @@ describe("matrix application", () => {
     expect(snapshot.asOfDate.toISOString()).toBe("2026-09-08T00:00:00.000Z");
     expect(result).toEqual({ snapshotId: "snapshot", created: 0, updated: 1, unchanged: 0, missing: 0 });
   });
+  it("replaces matrix notes on repeated imports without writing commission comments", async () => {
+    const action = existing();
+    db.budgetAction.findMany.mockImplementation(async () => [action]);
+    db.budgetAction.update.mockImplementation(async ({ data }) => Object.assign(action, data));
+    for (const notes of ["Note de la matrice", "Note actualisée", null]) {
+      const input = params();
+      input.parsed.actions[0].notes = notes;
+      expect(matrixActionValues(input.parsed.actions[0])).not.toHaveProperty("comment");
+      await applyBudgetMatrix(input);
+      expect(db.budgetAction.update.mock.lastCall?.[0].data).not.toHaveProperty("comment");
+      expect(action.notes).toBe(notes);
+      expect(action.comment).toBe("Décision de la commission");
+      expect(db.budgetSnapshot.create.mock.lastCall?.[0].data.data.actions[0]).toMatchObject({
+        notes, comment: "Décision de la commission",
+      });
+    }
+  });
   it("creates initial amounts and infers season, but does not delete missing actions", async () => {
     const input = params();
     input.parsed = parsedMatrix([matrixAction({ label: "Autre action", matrixKey: "action autre" })]);
@@ -65,6 +83,7 @@ describe("matrix application", () => {
       revisedGross: 5000, revisedClubIncome: 1000, revisedFederation: 4000,
       matrixLineNumber: 1, matrixOccurrence: 0, seasonId: "season-spring", fencingCategories: ["M20"], plannedMonth: 4, status: "BUDGETED",
     });
+    expect(db.budgetAction.create.mock.calls[0][0].data).not.toHaveProperty("comment");
     expect(result).toMatchObject({ created: 1, missing: 1 });
     expect(auditLogCreate).toHaveBeenLastCalledWith({ data: expect.objectContaining({
       action: "IMPORT_MATRIX", entityType: "BudgetSnapshot", userId: "user",

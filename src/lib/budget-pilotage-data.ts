@@ -5,6 +5,7 @@ import type { ExistingAction } from "./budget-matrix-diff";
 export function serializeBudgetAction(action: BudgetAction) {
   return {
     ...action,
+    comment: action.comment,
     initialGross: Number(action.initialGross), initialClubIncome: Number(action.initialClubIncome), initialFederation: Number(action.initialFederation),
     revisedGross: Number(action.revisedGross), revisedClubIncome: Number(action.revisedClubIncome), revisedFederation: Number(action.revisedFederation),
     adjustmentFederation: Number(action.adjustmentFederation),

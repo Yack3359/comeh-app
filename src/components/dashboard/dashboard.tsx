@@ -4,11 +4,9 @@ import {
   ArrowRight,
   BadgeEuro,
   FileUp,
-  Medal,
+  Target,
   ReceiptText,
-  Swords,
   TrendingDown,
-  Users,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +19,8 @@ import {
   formatDate,
   requestJson,
 } from "@/components/budget/utils";
+import { FlagBadge } from "@/components/pilotage/shared";
+import type { PilotageData } from "@/components/pilotage/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,12 +31,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-type RankingsSummary = {
-  activeAthletes: number;
-  competitions: number;
-  results: number;
-};
 
 type DashboardProps = {
   canImport: boolean;
@@ -66,9 +60,28 @@ export function Dashboard({ canImport }: DashboardProps) {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [seasonId, setSeasonId] = useState("");
   const [tracking, setTracking] = useState<TrackingData | null>(null);
-  const [rankings, setRankings] = useState<RankingsSummary | null>(null);
+  const [pilotage, setPilotage] = useState<PilotageData | null>(null);
+  const [pilotageLoading, setPilotageLoading] = useState(true);
+  const [pilotageError, setPilotageError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/pilotage", { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        if (response.status === 404) return null;
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error || "Impossible de charger le pilotage budgétaire");
+        return body as PilotageData;
+      })
+      .then(data => { if (!controller.signal.aborted) setPilotage(data); })
+      .catch((loadError: unknown) => {
+        if (!controller.signal.aborted) setPilotageError(loadError instanceof Error ? loadError.message : "Impossible de charger le pilotage budgétaire");
+      })
+      .finally(() => { if (!controller.signal.aborted) setPilotageLoading(false); });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -98,7 +111,6 @@ export function Dashboard({ canImport }: DashboardProps) {
   useEffect(() => {
     if (!seasonId) {
       setTracking(null);
-      setRankings(null);
       return;
     }
 
@@ -106,20 +118,13 @@ export function Dashboard({ canImport }: DashboardProps) {
     setIsLoading(true);
     setError(null);
     setTracking(null);
-    setRankings(null);
 
-    void Promise.all([
-      requestJson<TrackingData>(
-        `/api/budget-tracking?seasonId=${encodeURIComponent(seasonId)}`,
-      ),
-      requestJson<RankingsSummary>(
-        `/api/rankings-summary?seasonId=${encodeURIComponent(seasonId)}`,
-      ),
-    ])
-      .then(([budgetData, rankingsData]) => {
+    void requestJson<TrackingData>(
+      `/api/budget-tracking?seasonId=${encodeURIComponent(seasonId)}`,
+    )
+      .then((budgetData) => {
         if (!active) return;
         setTracking(budgetData);
-        setRankings(rankingsData);
       })
       .catch((loadError: unknown) => {
         if (!active) return;
@@ -153,14 +158,6 @@ export function Dashboard({ canImport }: DashboardProps) {
     [tracking],
   );
 
-  if (error && !tracking) {
-    return (
-      <div className="rounded-xl border border-accent/20 bg-accent-50 p-5 text-sm text-accent-700">
-        {error}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-institutional">
@@ -175,8 +172,8 @@ export function Dashboard({ canImport }: DashboardProps) {
                 Tableau de bord COMEH
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
-                L’état du budget et de l’activité sportive de la saison en un
-                coup d’œil.
+                Le pilotage budgétaire de la commission et les dépenses de la
+                saison en un coup d’œil.
               </p>
             </div>
 
@@ -195,6 +192,40 @@ export function Dashboard({ canImport }: DashboardProps) {
           </div>
         </div>
       </section>
+
+      {error && <p role="alert" className="rounded-xl border border-accent/20 bg-accent-50 p-5 text-sm text-accent-700">{error}</p>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">Pilotage budgétaire {pilotage?.fiscalYear.label ?? new Date().getFullYear()}</CardTitle>
+          {pilotage?.posts.length ? <CardDescription>Situation au {formatDate(pilotage.asOfDate)}</CardDescription> : null}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {pilotageLoading ? <p className="text-sm text-slate-500">Chargement du pilotage budgétaire…</p>
+            : pilotageError ? <p role="alert" className="text-sm text-accent-700">{pilotageError}</p>
+            : pilotage?.posts.length ? <>
+              <FlagBadge flag={pilotage.summary.flag} />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: "Budget FFE", value: pilotage.summary.totals.budget },
+                  { label: "Réalisé", value: pilotage.summary.totals.actual },
+                  { label: "Atterrissage", value: pilotage.summary.totals.landing },
+                  { label: "Marge globale (après restitution)", value: pilotage.summary.globalMargin },
+                ].map(({ label, value }) => <div className="rounded-lg border bg-slate-50 p-4" key={label}>
+                  <p className="text-xl font-bold tabular-nums text-slate-900">{formatCurrency(value)}</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{label}</p>
+                </div>)}
+              </div>
+              <ul className="space-y-2 text-sm">
+                {pilotage.vigilance.filter(point => point.level === "red" || point.level === "orange").slice(0, 3).map((point, index) =>
+                  <li key={index} className={point.level === "red" ? "text-accent-700" : "text-amber-700"}>{point.message}</li>)}
+              </ul>
+            </> : <p className="text-sm text-slate-500">Aucune matrice importée</p>}
+          <Button asChild size="sm" variant="outline">
+            <Link href="/pilotage">Ouvrir le pilotage<ArrowRight className="ml-2 h-4 w-4" /></Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       {!seasonId && !isLoading ? (
         <Card>
@@ -288,7 +319,7 @@ export function Dashboard({ canImport }: DashboardProps) {
             </div>
           </section>
 
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid gap-5">
             <Card>
               <CardHeader>
                 <CardTitle className="text-xl">
@@ -322,102 +353,53 @@ export function Dashboard({ canImport }: DashboardProps) {
                   </p>
                 ) : null}
                 <Button asChild className="mt-2" size="sm" variant="outline">
-                  <Link href="/budget">
+                  <Link href="/budget?vue=suivi">
                     Voir le suivi complet
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl">Activité rankings</CardTitle>
-                <CardDescription>
-                  Chiffres enregistrés pour la saison sélectionnée.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {[
-                    {
-                      label: "Athlètes actifs",
-                      value: rankings?.activeAthletes ?? 0,
-                      icon: Users,
-                    },
-                    {
-                      label: "Compétitions",
-                      value: rankings?.competitions ?? 0,
-                      icon: Medal,
-                    },
-                    {
-                      label: "Résultats",
-                      value: rankings?.results ?? 0,
-                      icon: Swords,
-                    },
-                  ].map(({ label, value, icon: Icon }) => (
-                    <div
-                      className="rounded-lg border bg-slate-50 p-4"
-                      key={label}
-                    >
-                      <Icon className="mb-3 h-5 w-5 text-primary" />
-                      <p className="text-2xl font-bold tabular-nums text-slate-900">
-                        {value}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold text-slate-500">
-                        {label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <Button asChild className="mt-5" size="sm" variant="outline">
-                  <Link href="/rankings">
-                    Ouvrir les rankings
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Accès rapides</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-3">
-              <Button asChild className="justify-between" variant="outline">
-                <Link href="/budget">
-                  <span className="flex items-center gap-2">
-                    <WalletCards className="h-4 w-4" />
-                    Frais & budget
-                  </span>
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button asChild className="justify-between" variant="outline">
-                <Link href="/rankings">
-                  <span className="flex items-center gap-2">
-                    <Medal className="h-4 w-4" />
-                    Rankings
-                  </span>
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              {canImport ? (
-                <Button asChild className="justify-between" variant="outline">
-                  <Link href="/imports">
-                    <span className="flex items-center gap-2">
-                      <FileUp className="h-4 w-4" />
-                      Import
-                    </span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-              ) : null}
-            </CardContent>
-          </Card>
         </>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">Accès rapides</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          <Button asChild className="justify-between" variant="outline">
+            <Link href="/budget">
+              <span className="flex items-center gap-2">
+                <WalletCards className="h-4 w-4" />
+                Frais & budget
+              </span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button asChild className="justify-between" variant="outline">
+            <Link href="/pilotage">
+              <span className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Pilotage budgétaire
+              </span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          {canImport ? (
+            <Button asChild className="justify-between" variant="outline">
+              <Link href="/imports">
+                <span className="flex items-center gap-2">
+                  <FileUp className="h-4 w-4" />
+                  Import
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }

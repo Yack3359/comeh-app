@@ -26,6 +26,7 @@ export function PilotageActionForm({ action, initialPostId, posts, onClose, onSa
   const [month, setMonth] = useState(String(action?.plannedMonth ?? "none"));
   const [categories, setCategories] = useState<Category[]>(action?.fencingCategories ?? []);
   const [notes, setNotes] = useState(action?.notes ?? "");
+  const [comment, setComment] = useState(action?.comment ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const revisedChanged = !!action && (Number(gross) !== action.revisedGross || Number(income) !== action.revisedClubIncome || Number(federation) !== action.revisedFederation);
@@ -42,7 +43,8 @@ export function PilotageActionForm({ action, initialPostId, posts, onClose, onSa
   function submit(event: FormEvent) {
     event.preventDefault();
     void send({ label, status, revisedGross: Number(gross), revisedClubIncome: Number(income), revisedFederation: Number(federation),
-      estimatedFederation: estimate.trim() === "" ? null : Number(estimate), plannedMonth: month === "none" ? null : Number(month), fencingCategories: categories, notes: notes || null,
+      estimatedFederation: estimate.trim() === "" ? null : Number(estimate), plannedMonth: month === "none" ? null : Number(month), fencingCategories: categories, comment: comment || null,
+      ...(action?.matrixKey != null ? {} : { notes: notes || null }),
       ...(action ? { adjustmentFederation: Number(adjustment), ...(revisionReason.trim() ? { revisionReason } : {}), ...(adjustmentReason.trim() ? { adjustmentReason } : {}) } : { postId }),
     });
   }
@@ -74,7 +76,8 @@ export function PilotageActionForm({ action, initialPostId, posts, onClose, onSa
           <FieldSelect id="action-month" label="Mois prévu" value={month} onChange={setMonth} options={[{ value: "none", label: "Non précisé" }, ...Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: monthLabel(index + 1) }))]} />
         </div>
         <fieldset className="space-y-2"><legend className="text-sm font-medium">Catégories d’âge</legend><div className="flex flex-wrap gap-4">{Object.entries(categoryLabels).map(([value, label]) => <label key={value} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={categories.includes(value as Category)} onChange={event => setCategories(current => event.target.checked ? [...current, value as Category] : current.filter(category => category !== value))} />{label}</label>)}</div></fieldset>
-        <div className="space-y-1.5"><Label htmlFor="action-notes">Notes</Label><textarea id="action-notes" rows={4} maxLength={10000} value={notes} onChange={event => setNotes(event.target.value)} className="w-full rounded-md border border-input bg-background p-3 text-sm focus-visible:outline-primary" /></div>
+        <div className="space-y-1.5"><Label htmlFor="action-notes">Notes de la matrice</Label><textarea id="action-notes" readOnly={action?.matrixKey != null} rows={4} maxLength={10000} value={notes} onChange={event => setNotes(event.target.value)} className="w-full rounded-md border border-input bg-background p-3 text-sm focus-visible:outline-primary" /></div>
+        <div className="space-y-1.5"><Label htmlFor="action-comment">Commentaire de la commission</Label><textarea id="action-comment" rows={4} maxLength={10000} value={comment} onChange={event => setComment(event.target.value)} className="w-full rounded-md border border-input bg-background p-3 text-sm focus-visible:outline-primary" /></div>
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>Fermer</Button><Button type="submit">{busy ? "Enregistrement…" : "Enregistrer"}</Button></div>
       </fieldset></form>
     </div>

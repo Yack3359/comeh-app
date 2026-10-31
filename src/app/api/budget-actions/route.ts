@@ -2,7 +2,6 @@ import { Role } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { runAsAuthenticatedUser } from "@/lib/api-auth";
 import { apiErrorResponse, invalidDataResponse } from "@/lib/api-response";
-import { normalizeMatrixLabel } from "@/lib/budget-matrix";
 import { inferredSeasonLabel } from "@/lib/budget-matrix-apply";
 import { serializeBudgetAction } from "@/lib/budget-pilotage-data";
 import { budgetActionCreateSchema } from "@/lib/budget-pilotage-validations";
@@ -22,7 +21,7 @@ export async function POST(request: Request) {
       const seasonLabel = inferredSeasonLabel(post.fiscalYear.label, data.plannedMonth ?? null);
       const season = seasonLabel ? await prisma.season.findUnique({ where: { label: seasonLabel }, select: { id: true } }) : null;
       const action = await prisma.budgetAction.create({ data: {
-        ...data, status, includedInBudget, seasonId: season?.id ?? null, matrixKey: normalizeMatrixLabel(data.label),
+        ...data, status, includedInBudget, seasonId: season?.id ?? null,
         initialGross: includedInBudget ? data.revisedGross : 0,
         initialClubIncome: includedInBudget ? data.revisedClubIncome : 0,
         initialFederation: includedInBudget ? data.revisedFederation : 0,
