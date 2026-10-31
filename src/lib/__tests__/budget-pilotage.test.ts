@@ -52,11 +52,23 @@ describe("summaries and vigilance", () => {
     const points = listVigilancePoints(summary, actions);
     expect(points).toEqual(expect.arrayContaining([
       expect.objectContaining({ level: "red", message: expect.stringContaining("12 345 €") }),
-      expect.objectContaining({ level: "orange", message: expect.stringContaining("atterrissage supérieur") }),
       expect.objectContaining({ message: expect.stringContaining("hors budget") }),
       expect.objectContaining({ message: expect.stringContaining("économie proposée à valider") }),
       expect.objectContaining({ message: expect.stringContaining("option non budgétée") }),
     ]));
+    expect(points.filter(point => point.actionId === "over")).toHaveLength(1);
+    expect(points.filter(point => point.actionId === "outside")).toHaveLength(1);
+  });
+  it("counts an adjustment in the budget, also for an unbudgeted action, and reports it", () => {
+    expect(computeActionFigures(pilotageAction({ revisedFederation: 10000, adjustmentFederation: 2000 })).budget).toBe(12000);
+    const outside = pilotageAction({ id: "berne", status: "UNBUDGETED", includedInBudget: false, adjustmentFederation: 15000, estimatedFederation: 27000 });
+    expect(computeActionFigures(outside)).toMatchObject({ budget: 15000, landing: 27000 });
+    const actions = [{ ...outside, postCode: "B" }];
+    const summary = computeFiscalYearSummary({ fiscalYear: { label: "2026", restitutionAmount: 0 }, posts: [post], actions });
+    const points = listVigilancePoints(summary, actions);
+    expect(points).toHaveLength(1);
+    expect(points[0].level).toBe("orange");
+    expect(buildMonthlyReportText(summary, points, new Date("2026-10-25"))).toContain("15 000 € de rallonge / ajustement");
   });
   it("writes a complete monthly point including each post, club income, restitution and synthesis", () => {
     const posts = [post, { ...post, id: "other", code: "C", label: "Compétitions séniors" }];

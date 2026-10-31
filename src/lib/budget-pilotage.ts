@@ -5,7 +5,7 @@ import { roundAmount } from "./budget-matrix";
 export type PilotageAction = {
   id: string; postId: string; label: string; plannedMonth: number | null; status: BudgetActionStatus;
   includedInBudget: boolean; proposedSaving: boolean;
-  initialFederation: number; revisedFederation: number; estimatedFederation: number | null;
+  initialFederation: number; revisedFederation: number; adjustmentFederation: number; estimatedFederation: number | null;
   actualFederation: number | null; revisedGross: number; revisedClubIncome: number;
   actualGross: number | null; actualClubIncome: number | null;
 };
@@ -15,8 +15,8 @@ export type Flag = "green" | "orange" | "red";
 const statuses: BudgetActionStatus[] = ["OPTION", "BUDGETED", "COMMITTED", "DONE", "CANCELLED", "UNBUDGETED"];
 const inBudget = (action: Pick<PilotageAction, "includedInBudget" | "status">) =>
   action.includedInBudget && action.status !== "OPTION" && action.status !== "UNBUDGETED";
-export function computeActionFigures(action: Pick<PilotageAction, "status" | "includedInBudget" | "revisedFederation" | "actualFederation" | "estimatedFederation">): ActionFigures {
-  const budget = inBudget(action) ? action.revisedFederation : 0;
+export function computeActionFigures(action: Pick<PilotageAction, "status" | "includedInBudget" | "revisedFederation" | "adjustmentFederation" | "actualFederation" | "estimatedFederation">): ActionFigures {
+  const budget = (inBudget(action) ? action.revisedFederation : 0) + action.adjustmentFederation;
   const actual = action.actualFederation ?? 0;
   const landing = action.status === "CANCELLED" ? actual : action.status === "DONE" ? action.actualFederation ?? action.revisedFederation
     : action.status === "OPTION" ? 0 : Math.max(action.estimatedFederation ?? (action.status === "UNBUDGETED" ? 0 : action.revisedFederation), actual);
@@ -26,7 +26,7 @@ export function computeActionFigures(action: Pick<PilotageAction, "status" | "in
 const flagFor = (budget: number, actual: number, landing: number): Flag =>
   actual > budget + 0.5 ? "red" : landing > budget + 0.5 ? "orange" : "green";
 export type SummaryTotals = {
-  budget: number; initialBudget: number; actual: number; landing: number; remaining: number; margin: number;
+  budget: number; adjustments: number; initialBudget: number; actual: number; landing: number; remaining: number; margin: number;
   flag: Flag; options: number; unbudgeted: number; proposedSavings: number;
   gross: { budget: number; actual: number }; clubIncome: { budget: number; actual: number };
   counts: Record<BudgetActionStatus, number>;
@@ -41,7 +41,7 @@ function aggregate(actions: PilotageAction[]): SummaryTotals {
   const actual = sum(action => computeActionFigures(action).actual);
   const landing = sum(action => computeActionFigures(action).landing);
   return {
-    budget, initialBudget: sum(action => inBudget(action) ? action.initialFederation : 0), actual, landing,
+    budget, adjustments: sum(action => action.adjustmentFederation), initialBudget: sum(action => inBudget(action) ? action.initialFederation : 0), actual, landing,
     remaining: roundAmount(budget - actual), margin: roundAmount(budget - landing), flag: flagFor(budget, actual, landing),
     options: sum(action => action.status === "OPTION" ? action.revisedFederation : 0),
     unbudgeted: sum(action => action.status === "UNBUDGETED" ? computeActionFigures(action).landing : 0),
@@ -78,8 +78,8 @@ export function listVigilancePoints(summary: FiscalYearSummary, actions: Array<P
       add("info", "événement passé sans dépense enregistrée — annulé ou pas encore facturé ? (" + money(figures.budget) + " budgétés)");
     }
     if (figures.actual > figures.budget) add("red", "dépassement réalisé de " + money(figures.actual - figures.budget));
-    if (figures.landing > figures.budget) add("orange", "atterrissage supérieur au budget de " + money(figures.landing - figures.budget));
-    if (action.status === "UNBUDGETED" && figures.landing > 0) add("orange", "action hors budget, atterrissage de " + money(figures.landing));
+    else if (action.status === "UNBUDGETED" && figures.landing > 0) add("orange", "action hors budget, atterrissage de " + money(figures.landing));
+    else if (figures.landing > figures.budget) add("orange", "atterrissage supérieur au budget de " + money(figures.landing - figures.budget));
     if (action.proposedSaving && action.status !== "CANCELLED") add("info", "économie proposée à valider de " + money(action.revisedFederation));
     if (action.status === "OPTION" && !action.includedInBudget) add("info", "option non budgétée de " + money(action.revisedFederation));
   }
@@ -95,6 +95,7 @@ export function buildMonthlyReportText(summary: FiscalYearSummary, vigilance: Vi
     const percent = post.budget === 0 ? "—" : (post.actual / post.budget * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
     lines.push((index + 1) + ". " + post.label,
       "• Budget " + summary.fiscalYearLabel + " : " + budgetText,
+      ...(post.adjustments > 0 ? ["  • dont " + money(post.adjustments) + " de rallonge / ajustement"] : []),
       "• Réalisé à date : " + money(post.actual) + " (" + percent + " % du budget)",
       "• Reste : " + money(post.remaining),
       "• Atterrissage estimé : " + money(post.landing) + " → " + (post.margin >= 0 ? "marge" : "dépassement") + " de " + money(Math.abs(post.margin)),

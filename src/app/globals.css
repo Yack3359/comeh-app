@@ -35,3 +35,20 @@
     @apply bg-primary text-primary-foreground;
   }
 }
+
+@media print {
+  body > div > header,
+  body > div > div > aside,
+  nav[aria-label="Navigation principale"],
+  [data-print-hide] {
+    display: none !important;
+  }
+  body > div > div:has(> main) {
+    display: block !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  main { min-width: 0; }
+  body { background: white; }
+  .shadow-institutional { box-shadow: none !important; }
+}

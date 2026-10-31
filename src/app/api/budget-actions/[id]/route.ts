@@ -5,7 +5,7 @@ import { runAsAuthenticatedUser } from "@/lib/api-auth";
 import { apiErrorResponse, invalidDataResponse } from "@/lib/api-response";
 import { normalizeMatrixLabel } from "@/lib/budget-matrix";
 import { serializeBudgetAction } from "@/lib/budget-pilotage-data";
-import { budgetActionUpdateSchema, pilotageParamsSchema, requiresRevisionReason } from "@/lib/budget-pilotage-validations";
+import { budgetActionUpdateSchema, pilotageParamsSchema, requiresRevisionReason, validateAdjustment } from "@/lib/budget-pilotage-validations";
 import { prisma } from "@/lib/prisma";
 
 const writeRoles = [Role.ADMIN, Role.COMEH_MEMBER] as const;
@@ -23,6 +23,7 @@ export async function PATCH(request: Request, context: Context) {
         if (requiresRevisionReason(serializeBudgetAction(current), body.data)) {
           throw new z.ZodError([{ code: "custom", path: ["revisionReason"], message: "Un motif est obligatoire lorsqu’un montant révisé change" }]);
         }
+        validateAdjustment(serializeBudgetAction(current), body.data);
         return tx.budgetAction.update({ where: { id: current.id }, data: {
           ...body.data, ...(body.data.label !== undefined ? { matrixKey: normalizeMatrixLabel(body.data.label) } : {}),
         } });

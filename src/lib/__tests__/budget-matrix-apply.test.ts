@@ -19,6 +19,7 @@ const existing = () => ({
   status: "CANCELLED", includedInBudget: true, proposedSaving: false, origin: "RENEWED",
   initialGross: decimal(6000), initialClubIncome: decimal(1000), initialFederation: decimal(5000),
   revisedGross: decimal(5000), revisedClubIncome: decimal(1000), revisedFederation: decimal(4000),
+  adjustmentFederation: decimal(0), adjustmentReason: null,
   actualGross: null, actualClubIncome: null, actualFederation: null, estimatedFederation: decimal(1200),
   previousYearAmount: decimal(3500), revisionReason: "Décision manuelle", notes: null,
   fencingCategories: ["U23"], plannedMonth: 10, seasonId: "manual-season", competitionId: "manual-competition",

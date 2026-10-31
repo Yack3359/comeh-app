@@ -7,6 +7,7 @@ export function serializeBudgetAction(action: BudgetAction) {
     ...action,
     initialGross: Number(action.initialGross), initialClubIncome: Number(action.initialClubIncome), initialFederation: Number(action.initialFederation),
     revisedGross: Number(action.revisedGross), revisedClubIncome: Number(action.revisedClubIncome), revisedFederation: Number(action.revisedFederation),
+    adjustmentFederation: Number(action.adjustmentFederation),
     previousYearAmount: action.previousYearAmount === null ? null : Number(action.previousYearAmount),
     estimatedFederation: action.estimatedFederation === null ? null : Number(action.estimatedFederation),
     actualGross: action.actualGross === null ? null : Number(action.actualGross),

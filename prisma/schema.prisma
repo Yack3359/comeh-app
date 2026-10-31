@@ -409,6 +409,8 @@ model BudgetAction {
   revisedClubIncome   Decimal             @default(0) @map("revised_club_income") @db.Decimal(12, 2)
   revisedFederation   Decimal             @default(0) @map("revised_federation") @db.Decimal(12, 2)
   revisionReason      String?             @map("revision_reason")
+  adjustmentFederation Decimal            @default(0) @map("adjustment_federation") @db.Decimal(12, 2)
+  adjustmentReason    String?             @map("adjustment_reason")
   previousYearAmount  Decimal?            @map("previous_year_amount") @db.Decimal(12, 2)
   estimatedFederation Decimal?            @map("estimated_federation") @db.Decimal(12, 2)
   actualGross         Decimal?            @map("actual_gross") @db.Decimal(12, 2)

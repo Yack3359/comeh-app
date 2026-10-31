@@ -30,6 +30,8 @@ export const budgetActionCreateSchema = z.object({
   fencingCategories: shared.fencingCategories.default([]), notes: shared.notes.optional(), competitionId: shared.competitionId.optional(),
 }).strict();
 export const budgetActionUpdateSchema = z.object({
+  adjustmentFederation: z.number().finite().min(-9_999_999_999.99).max(9_999_999_999.99).multipleOf(0.01, "Deux décimales au maximum"),
+  adjustmentReason: z.string().trim().min(1, "Motif d’ajustement requis").max(2000),
   ...shared, includedInBudget: z.boolean(), revisionReason: z.string().trim().min(1, "Motif de révision requis").max(2000),
 }).partial().strict().refine(value => Object.keys(value).length > 0, "Aucune modification");
 export const restitutionUpdateSchema = z.object({ restitutionAmount: amount }).strict();
@@ -39,4 +41,20 @@ export function requiresRevisionReason(
   update: z.infer<typeof budgetActionUpdateSchema>,
 ): boolean {
   return revisedAmountFields.some(field => update[field] !== undefined && update[field] !== current[field]) && !update.revisionReason;
+}
+
+// Check the resulting amounts together, including a revision that reduces the ceiling.
+export function validateAdjustment(
+  current: { revisedFederation: number; adjustmentFederation: number },
+  update: z.infer<typeof budgetActionUpdateSchema>,
+): void {
+  const adjustment = update.adjustmentFederation ?? current.adjustmentFederation;
+  const revised = update.revisedFederation ?? current.revisedFederation;
+  const issues: z.ZodIssue[] = [];
+  if (adjustment < -revised) issues.push({ code: "custom", path: ["adjustmentFederation"],
+    message: "La réduction ne peut pas dépasser le montant révisé FFE" });
+  if (adjustment !== current.adjustmentFederation && !update.adjustmentReason) issues.push({
+    code: "custom", path: ["adjustmentReason"], message: "Un motif est obligatoire lorsqu’un ajustement change",
+  });
+  if (issues.length) throw new z.ZodError(issues);
 }

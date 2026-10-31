@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   FileUp,
   Gauge,
+  Target,
   Medal,
   ScrollText,
   ShieldAlert,
@@ -27,6 +28,7 @@ export function AppNav({ canImport, isAdmin }: AppNavProps) {
   const pathname = usePathname();
   const links = [
     { href: "/", label: "Tableau de bord", icon: Gauge },
+    { href: "/pilotage", label: "Pilotage budgétaire", icon: Target },
     { href: "/budget", label: "Frais & budget", icon: WalletCards },
     { href: "/rankings", label: "Rankings", icon: Medal },
     ...(canImport

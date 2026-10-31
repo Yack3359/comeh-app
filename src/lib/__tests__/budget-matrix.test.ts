@@ -141,7 +141,7 @@ describe("Lot 1a-bis parser regressions", () => {
     let parsed = await parseBudgetMatrix(await workbook.xlsx.writeBuffer());
     const operating = parsed.actions.find(action => action.rowNumber === 5)!;
     expect(operating.suggestedStatus).toBe("BUDGETED");
-    expect(computeActionFigures({ ...operating, status: operating.suggestedStatus, revisedFederation: operating.federation ?? 0 }).landing).toBe(7070);
+    expect(computeActionFigures({ ...operating, status: operating.suggestedStatus, revisedFederation: operating.federation ?? 0, adjustmentFederation: 0 }).landing).toBe(7070);
     sheet.getCell("C5").value = "Frais janvier => FAIT";
     parsed = await parseBudgetMatrix(await workbook.xlsx.writeBuffer());
     expect(parsed.actions.find(action => action.rowNumber === 5)?.suggestedStatus).toBe("DONE");

@@ -24,7 +24,7 @@ export async function POST(request: Request) {
         prisma.budgetAction.findMany({ where: { post: { fiscalYearId: fiscalYear.id } }, include: { post: true } }),
         prisma.budgetPost.findMany({ where: { fiscalYearId: fiscalYear.id } }),
       ]);
-      return NextResponse.json({ parsed, diff: buildMatrixDiff(parsed, actions.map(existingMatrixAction), undefined, posts), fiscalYear });
+      return NextResponse.json({ existingActions: actions.map(action => ({ id: action.id, postCode: action.post.code, label: action.label })), parsed, diff: buildMatrixDiff(parsed, actions.map(existingMatrixAction), undefined, posts), fiscalYear });
     }, writeRoles);
   } catch (error) {
     if (error instanceof MatrixUploadError) return NextResponse.json({ error: error.message }, { status: 400 });
