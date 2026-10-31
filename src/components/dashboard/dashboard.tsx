@@ -209,7 +209,8 @@ export function Dashboard({ canImport }: DashboardProps) {
                 {[
                   { label: "Budget FFE", value: pilotage.summary.totals.budget },
                   { label: "Réalisé", value: pilotage.summary.totals.actual },
-                  { label: "Atterrissage", value: pilotage.summary.totals.landing },
+                  { label: "Reste à venir", value: pilotage.summary.totals.remaining },
+                  { label: "Atterrissage (total)", value: pilotage.summary.totals.landing },
                   { label: "Marge globale (après restitution)", value: pilotage.summary.globalMargin },
                 ].map(({ label, value }) => <div className="rounded-lg border bg-slate-50 p-4" key={label}>
                   <p className="text-xl font-bold tabular-nums text-slate-900">{formatCurrency(value)}</p>

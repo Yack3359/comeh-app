@@ -396,6 +396,7 @@ model BudgetAction {
   matrixOccurrence    Int?                @map("matrix_occurrence")
   origin              BudgetActionOrigin?
   status              BudgetActionStatus  @default(BUDGETED)
+  settled             Boolean?            @map("settled")
   includedInBudget    Boolean             @default(true) @map("included_in_budget")
   proposedSaving      Boolean             @default(false) @map("proposed_saving")
   fencingCategories   FencingCategory[]   @default([]) @map("fencing_categories")

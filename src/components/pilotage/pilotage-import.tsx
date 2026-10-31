@@ -56,6 +56,8 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
   const [preview, setPreview] = useState<MatrixPreview | null>(null);
   const [asOfDate, setAsOfDate] = useState("");
   const [overrides, setOverrides] = useState<Record<number, string | null>>({});
+  const [historicalOnly, setHistoricalOnly] = useState(false);
+  const [previewValid, setPreviewValid] = useState(false);
   const [showUnchanged, setShowUnchanged] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
@@ -75,6 +77,8 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
         body: formData,
       });
       setPreview(res);
+      setPreviewValid(true);
+      setHistoricalOnly(false);
       setAsOfDate(res.parsed.asOfDate ?? new Date().toISOString().slice(0, 10));
       setOverrides({});
     } catch (err) {
@@ -84,17 +88,37 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
     }
   };
 
+  const handleMatch = async (rowNumber: number, value: string) => {
+    if (!file || !preview || loading || value === "__ambiguous__") return;
+    const next = { ...overrides, [rowNumber]: value === "__new__" ? null : value };
+    setOverrides(next);
+    setPreviewValid(false);
+    setLoading(true);
+    setLoadingText("Recalcul de l’aperçu…");
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("fiscalYearLabel", preview.fiscalYear.label);
+      formData.append("overrides", JSON.stringify(next));
+      setPreview(await pilotageRequest<MatrixPreview>("/api/budget-matrix/preview", { method: "POST", body: formData }));
+      setPreviewValid(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de recalculer l’aperçu.");
+    } finally { setLoading(false); }
+  };
+
   const handleApply = async () => {
-    if (!preview || !asOfDate) return;
+    if (!preview || !asOfDate || loading || !previewValid || (!historicalOnly && preview.diff.actions.some(action => action.ambiguous))) return;
     setLoading(true);
     setLoadingText("Import en cours…");
     setError(null);
     try {
       const formData = new FormData();
       if (file) formData.append("file", file);
-      const payload: { fiscalYearLabel: string; asOfDate: string; overrides?: Record<number, string | null> } = {
+      const payload: { fiscalYearLabel: string; asOfDate: string; historicalOnly: boolean; overrides?: Record<number, string | null> } = {
         fiscalYearLabel: preview.fiscalYear.label,
-        asOfDate,
+        asOfDate, historicalOnly,
       };
       if (Object.keys(overrides).length > 0) {
         payload.overrides = overrides;
@@ -156,7 +180,7 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
   const unchangedCount = preview.diff.actions.filter((a) => a.kind === "unchanged").length;
   const missingCount = preview.diff.missingActions.length;
 
-  const displayedActions = preview.diff.actions.filter((a) => showUnchanged || a.kind !== "unchanged");
+  const displayedActions = preview.diff.actions.filter((a) => showUnchanged || a.kind !== "unchanged" || a.statusPreserved || a.ambiguous);
 
   return (
     <div className="space-y-6">
@@ -187,6 +211,8 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
               </div>
             )}
           </div>
+
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={historicalOnly} disabled={loading} onChange={event => setHistoricalOnly(event.target.checked)} />Importer comme historique seulement</label>
 
           <div className="flex flex-wrap gap-2 text-sm">
             <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
@@ -257,6 +283,7 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
                     const rowPostCode = preview.parsed.actions.find((a) => a.rowNumber === action.rowNumber)?.postCode;
                     const postExisting = preview.existingActions.filter((ea) => ea.postCode === rowPostCode);
                     const options = [
+                      ...(action.ambiguous ? [{ value: "__ambiguous__", label: "Rapprochement manuel requis" }] : []),
                       { value: "__new__", label: "Nouvelle action" },
                       ...postExisting.map((ea) => ({ value: ea.id, label: ea.label })),
                     ];
@@ -264,11 +291,13 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
                     const currentValue =
                       overrides[action.rowNumber] !== undefined
                         ? (overrides[action.rowNumber] ?? "__new__")
-                        : (action.actionId ?? "__new__");
+                        : (action.ambiguous ? "__ambiguous__" : action.actionId ?? "__new__");
 
                     return (
                       <TableRow key={action.rowNumber}>
                         <TableCell>
+                          {action.ambiguous && <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">Rapprochement ambigu — choix manuel requis</Badge>}
+                          {action.statusPreserved && <Badge variant="outline">Statut conservé</Badge>}
                           {action.kind === "new" && (
                             <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
                               Nouvelle
@@ -318,12 +347,7 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
                             label=""
                             value={currentValue}
                             disabled={loading}
-                            onChange={(val) => {
-                              setOverrides((prev) => ({
-                                ...prev,
-                                [action.rowNumber]: val === "__new__" ? null : val,
-                              }));
-                            }}
+                            onChange={val => void handleMatch(action.rowNumber, val)}
                             options={options}
                           />
                         </TableCell>
@@ -361,7 +385,7 @@ export function PilotageImport({ onImported }: { onImported: (fiscalYearLabel: s
             <Button variant="outline" type="button" onClick={handleCancel} disabled={loading}>
               Annuler
             </Button>
-            <Button type="button" onClick={handleApply} disabled={loading || !asOfDate}>
+            <Button type="button" onClick={handleApply} disabled={loading || !asOfDate || !previewValid || (!historicalOnly && preview.diff.actions.some(action => action.ambiguous))}>
               {loading ? loadingText : "Valider l'import"}
             </Button>
           </div>

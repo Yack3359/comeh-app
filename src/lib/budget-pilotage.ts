@@ -4,7 +4,7 @@ import { roundAmount } from "./budget-matrix";
 
 export type PilotageAction = {
   id: string; postId: string; label: string; plannedMonth: number | null; status: BudgetActionStatus;
-  includedInBudget: boolean; proposedSaving: boolean;
+  includedInBudget: boolean; proposedSaving: boolean; settled: boolean | null;
   initialFederation: number; revisedFederation: number; adjustmentFederation: number; estimatedFederation: number | null;
   actualFederation: number | null; revisedGross: number; revisedClubIncome: number;
   actualGross: number | null; actualClubIncome: number | null;
@@ -15,13 +15,26 @@ export type Flag = "green" | "orange" | "red";
 const statuses: BudgetActionStatus[] = ["OPTION", "BUDGETED", "COMMITTED", "DONE", "CANCELLED", "UNBUDGETED"];
 const inBudget = (action: Pick<PilotageAction, "includedInBudget" | "status">) =>
   action.includedInBudget && action.status !== "OPTION" && action.status !== "UNBUDGETED";
-export function computeActionFigures(action: Pick<PilotageAction, "status" | "includedInBudget" | "revisedFederation" | "adjustmentFederation" | "actualFederation" | "estimatedFederation">): ActionFigures {
-  const budget = (inBudget(action) ? action.revisedFederation : 0) + action.adjustmentFederation;
+export type SituationContext = { asOfDate: Date | null; fiscalYearLabel: string };
+export function isActionSettled(action: Pick<PilotageAction, "settled" | "status" | "label" | "plannedMonth">,
+  context?: SituationContext): boolean {
+  if (action.settled !== null) return action.settled;
+  if (action.status !== "DONE") return false;
+  if (/\bfait\b/i.test(action.label.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) return true;
+  if (action.plannedMonth === null || !context?.asOfDate) return false;
+  const elapsedMonths = (context.asOfDate.getUTCFullYear() - Number(context.fiscalYearLabel)) * 12 +
+    context.asOfDate.getUTCMonth() + 1 - action.plannedMonth;
+  return elapsedMonths >= 2;
+}
+export function computeActionFigures(action: Pick<PilotageAction, "status" | "includedInBudget" | "revisedFederation" | "adjustmentFederation" | "actualFederation" | "estimatedFederation" | "settled" | "label" | "plannedMonth">,
+  context?: SituationContext): ActionFigures {
+  const budget = action.status === "OPTION" ? 0 : (inBudget(action) ? action.revisedFederation : 0) + action.adjustmentFederation;
   const actual = action.actualFederation ?? 0;
-  const landing = action.status === "CANCELLED" ? actual : action.status === "DONE" ? action.actualFederation ?? action.revisedFederation
-    : action.status === "OPTION" ? 0 : Math.max(action.estimatedFederation ?? (action.status === "UNBUDGETED" ? 0 : action.revisedFederation), actual);
+  const remaining = isActionSettled(action, context) || action.status === "CANCELLED" || action.status === "OPTION"
+    ? 0 : Math.max((action.estimatedFederation ?? budget) - actual, 0);
+  const landing = actual + remaining;
   return { budget: roundAmount(budget), actual: roundAmount(actual), landing: roundAmount(landing),
-    variance: roundAmount(actual - budget), remaining: roundAmount(budget - actual) };
+    variance: roundAmount(actual - budget), remaining: roundAmount(remaining) };
 }
 const flagFor = (budget: number, actual: number, landing: number): Flag =>
   actual > budget + 0.5 ? "red" : landing > budget + 0.5 ? "orange" : "green";
@@ -35,31 +48,32 @@ export type PostSummary = Pick<PilotagePost, "code" | "label" | "kind"> & Summar
 export type FiscalYearSummary = {
   fiscalYearLabel: string; posts: PostSummary[]; totals: SummaryTotals; restitution: number; globalMargin: number; flag: Flag;
 };
-function aggregate(actions: PilotageAction[]): SummaryTotals {
+function aggregate(actions: PilotageAction[], context?: SituationContext): SummaryTotals {
   const sum = (get: (action: PilotageAction) => number) => roundAmount(actions.reduce((total, action) => total + get(action), 0));
-  const budget = sum(action => computeActionFigures(action).budget);
-  const actual = sum(action => computeActionFigures(action).actual);
-  const landing = sum(action => computeActionFigures(action).landing);
+  const budget = sum(action => computeActionFigures(action, context).budget);
+  const actual = sum(action => computeActionFigures(action, context).actual);
+  const landing = sum(action => computeActionFigures(action, context).landing);
   return {
     budget, adjustments: sum(action => action.adjustmentFederation), initialBudget: sum(action => inBudget(action) ? action.initialFederation : 0), actual, landing,
-    remaining: roundAmount(budget - actual), margin: roundAmount(budget - landing), flag: flagFor(budget, actual, landing),
+    remaining: sum(action => computeActionFigures(action, context).remaining), margin: roundAmount(budget - landing), flag: flagFor(budget, actual, landing),
     options: sum(action => action.status === "OPTION" ? action.revisedFederation : 0),
-    unbudgeted: sum(action => action.status === "UNBUDGETED" ? computeActionFigures(action).landing : 0),
+    unbudgeted: sum(action => action.status === "UNBUDGETED" ? computeActionFigures(action, context).landing : 0),
     proposedSavings: sum(action => action.proposedSaving && action.status !== "CANCELLED" ? action.revisedFederation : 0),
     gross: { budget: sum(action => inBudget(action) ? action.revisedGross : 0), actual: sum(action => action.actualGross ?? 0) },
     clubIncome: { budget: sum(action => inBudget(action) ? action.revisedClubIncome : 0), actual: sum(action => action.actualClubIncome ?? 0) },
     counts: Object.fromEntries(statuses.map(status => [status, actions.filter(action => action.status === status).length])) as Record<BudgetActionStatus, number>,
   };
 }
-export function computePostSummary(post: PilotagePost, actions: PilotageAction[]): PostSummary {
-  return { code: post.code, label: post.label, kind: post.kind, ...aggregate(actions.filter(action => action.postId === post.id)) };
+export function computePostSummary(post: PilotagePost, actions: PilotageAction[], context?: SituationContext): PostSummary {
+  return { code: post.code, label: post.label, kind: post.kind, ...aggregate(actions.filter(action => action.postId === post.id), context) };
 }
-export function computeFiscalYearSummary({ fiscalYear, posts, actions }: {
-  fiscalYear: { label: string; restitutionAmount: number }; posts: PilotagePost[]; actions: PilotageAction[];
+export function computeFiscalYearSummary({ fiscalYear, posts, actions, asOfDate }: {
+  fiscalYear: { label: string; restitutionAmount: number }; posts: PilotagePost[]; actions: PilotageAction[]; asOfDate?: Date | null;
 }): FiscalYearSummary {
-  const totals = aggregate(actions);
+  const context = { asOfDate: asOfDate ?? null, fiscalYearLabel: fiscalYear.label };
+  const totals = aggregate(actions, context);
   const restitution = fiscalYear.restitutionAmount;
-  return { fiscalYearLabel: fiscalYear.label, posts: posts.map(post => computePostSummary(post, actions)),
+  return { fiscalYearLabel: fiscalYear.label, posts: posts.map(post => computePostSummary(post, actions, context)),
     totals, restitution, globalMargin: roundAmount(totals.budget - totals.landing - restitution),
     flag: flagFor(totals.budget, totals.actual, totals.landing + restitution) };
 }
@@ -71,7 +85,7 @@ export function listVigilancePoints(summary: FiscalYearSummary, actions: Array<P
   for (const action of actions) {
     const post = summary.posts.find(post => post.code === action.postCode);
     if (!post) continue;
-    const figures = computeActionFigures(action);
+    const figures = computeActionFigures(action, context);
     const add = (level: VigilancePoint["level"], message: string) => points.push({ level, postCode: action.postCode, actionId: action.id, message: action.label + " : " + message });
     if (context && action.status === "BUDGETED" && action.actualFederation === null && action.actualGross === null &&
       post.kind !== "OPERATING" && isPlannedMonthPast(action.plannedMonth, context.asOfDate, context.fiscalYearLabel)) {
@@ -97,11 +111,12 @@ export function buildMonthlyReportText(summary: FiscalYearSummary, vigilance: Vi
       "• Budget " + summary.fiscalYearLabel + " : " + budgetText,
       ...(post.adjustments > 0 ? ["  • dont " + money(post.adjustments) + " de rallonge / ajustement"] : []),
       "• Réalisé à date : " + money(post.actual) + " (" + percent + " % du budget)",
-      "• Reste : " + money(post.remaining),
-      "• Atterrissage estimé : " + money(post.landing) + " → " + (post.margin >= 0 ? "marge" : "dépassement") + " de " + money(Math.abs(post.margin)),
+      "• Reste à venir : " + money(post.remaining),
+      "• Atterrissage (total) : " + money(post.landing) + " → " + (post.margin >= 0 ? "marge" : "dépassement") + " de " + money(Math.abs(post.margin)),
       ...vigilance.filter(point => point.postCode === post.code).map(point => "• " + point.message), "");
   });
-  lines.push("Synthèse", "Marge globale : " + money(summary.globalMargin));
+  lines.push("Synthèse", "Réalisé : " + money(summary.totals.actual) + " | Reste à venir : " + money(summary.totals.remaining) +
+    " | Atterrissage (total) : " + money(summary.totals.landing), "Marge globale : " + money(summary.globalMargin));
   if (summary.restitution > 0) lines.push("Restitution fédé : " + money(summary.restitution));
   return lines.join("\n");
 }

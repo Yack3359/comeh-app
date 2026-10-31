@@ -17,9 +17,9 @@ export function PilotageSummary({ data, onPost }: { data: PilotageData; onPost: 
   const percent = summary.totals.budget ? (100 * summary.totals.actual / summary.totals.budget).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " % du budget" : "Budget nul";
   const indicators = [
     { label: "Budget FFE", value: summary.totals.budget, detail: "dont " + formatCurrency(summary.totals.adjustments) + " de rallonges / ajustements" },
-    { label: "Réalisé à date", value: summary.totals.actual, detail: percent },
-    { label: "Reste à dépenser", value: summary.totals.remaining },
-    { label: "Atterrissage estimé", value: summary.totals.landing },
+    { label: "Réalisé", value: summary.totals.actual, detail: percent },
+    { label: "Reste à venir", value: summary.totals.remaining },
+    { label: "Atterrissage (total)", value: summary.totals.landing },
     { label: "Marge globale", value: summary.globalMargin, detail: "Après restitution fédé de " + formatCurrency(summary.restitution) },
   ];
   async function copy() {
@@ -38,7 +38,7 @@ export function PilotageSummary({ data, onPost }: { data: PilotageData; onPost: 
         <button type="button" onClick={() => onPost(post.code)} className="w-full space-y-4 p-5 text-left focus-visible:outline-primary" aria-label={"Voir les actions du poste " + post.code + " — " + post.label}>
           <h2 className="font-bold text-primary">{post.code} — {post.label}</h2><FlagBadge flag={post.flag} />
           <dl className="grid grid-cols-2 gap-3 text-sm">{[
-            ["Budget FFE", post.budget], ["Réalisé", post.actual], ["Atterrissage", post.landing], ["Marge", post.margin],
+            ["Budget FFE", post.budget], ["Réalisé", post.actual], ["Reste à venir", post.remaining], ["Atterrissage (total)", post.landing], ["Marge", post.margin],
           ].map(([label, value]) => <div key={label}><dt className="text-slate-500">{label}</dt><dd className="font-semibold tabular-nums">{formatCurrency(value)}</dd></div>)}</dl>
           <div className="space-y-2"><div className="relative h-4 rounded bg-slate-100" role="img" aria-label={"Réalisé " + formatCurrency(post.actual) + ", atterrissage " + formatCurrency(post.landing) + ", budget " + formatCurrency(post.budget)}>
             <div className="absolute inset-y-0 left-0 rounded-l bg-primary" style={{ width: width(post.actual) + "%" }} />

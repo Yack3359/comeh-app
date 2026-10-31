@@ -3,7 +3,7 @@ import { normalizeMatrixLabel, type MatrixAction, type MatrixPost, type ParsedMa
 
 export type ExistingAction = {
   id: string; postCode: string; label: string; matrixKey: string | null;
-  matrixLineNumber: number | null; matrixOccurrence: number | null; estimatedFederation: number | null;
+  matrixLineNumber: number | null; matrixOccurrence: number | null; sortOrder: number; estimatedFederation: number | null;
   status: BudgetActionStatus; includedInBudget: boolean; proposedSaving: boolean;
   revisedGross: number; revisedClubIncome: number; revisedFederation: number;
   actualGross: number | null; actualClubIncome: number | null; actualFederation: number | null;
@@ -11,17 +11,18 @@ export type ExistingAction = {
 };
 export type MatrixOverrides = Record<number, string | null>;
 export type ExistingPost = Pick<MatrixPost, "code" | "label">;
-export type MatrixMatch = { rowNumber: number; actionId: string | null; score: number; matchedBy: "label" | "position" };
+export type MatrixMatch = { rowNumber: number; actionId: string | null; score: number; matchedBy: "label" | "position"; ambiguous: boolean };
 type Change = { field: string; before: string | number | boolean | null; after: string | number | boolean | null };
 export type MatrixDiff = {
   posts: Array<{ code: string; label: string; kind: "new" | "updated"; previousLabel?: string }>;
-  actions: Array<MatrixMatch & { kind: "new" | "updated" | "unchanged"; label: string; previousLabel?: string; changes: Change[] }>;
+  actions: Array<MatrixMatch & { kind: "new" | "updated" | "unchanged"; label: string; previousLabel?: string; statusPreserved: boolean; changes: Change[] }>;
   missingActions: ExistingAction[]; ignoredRows: ParsedMatrix["ignoredRows"]; warnings: string[];
 };
 export class MatrixMatchError extends Error {}
 
 export function importedActionStatus(current: BudgetActionStatus, suggested: MatrixAction["suggestedStatus"]): BudgetActionStatus {
-  return (current === "CANCELLED" || current === "COMMITTED" || current === "DONE") && suggested === "BUDGETED" ? current : suggested;
+  if ((current === "CANCELLED" || current === "DONE") && suggested !== "DONE") return current;
+  return current === "COMMITTED" && suggested === "BUDGETED" ? current : suggested;
 }
 export function labelSimilarity(a: string, b: string): number {
   const left = new Set(normalizeMatrixLabel(a).split(" ").filter(Boolean));
@@ -40,34 +41,41 @@ export function matchMatrixActions(parsed: MatrixAction[], existing: ExistingAct
     if (!row || (actionId !== null && (!target || target.postCode !== row.postCode || used.has(actionId)))) {
       throw new MatrixMatchError("Rapprochement invalide pour la ligne " + key);
     }
-    matches.set(rowNumber, { rowNumber, actionId, score: actionId === null ? 0 : 1, matchedBy: "label" });
+    matches.set(rowNumber, { rowNumber, actionId, score: actionId === null ? 0 : 1, matchedBy: "label", ambiguous: false });
     if (actionId !== null) used.add(actionId);
   }
-  const candidates = parsed.filter(row => !matches.has(row.rowNumber)).flatMap(row =>
+  const samePosition = (row: MatrixAction, action: ExistingAction) => row.lineNumber !== null && row.lineOccurrence !== null &&
+    row.lineNumber === action.matrixLineNumber && row.lineOccurrence === action.matrixOccurrence;
+  const candidates = parsed.flatMap((row, sortOrder) => matches.has(row.rowNumber) ? [] :
     existing.filter(action => action.postCode === row.postCode && !used.has(action.id)).map(action => ({
-      rowNumber: row.rowNumber, actionId: action.id, matchedBy: "label" as const,
+      rowNumber: row.rowNumber, actionId: action.id, matchedBy: "label" as const, ambiguous: false,
       score: row.matrixKey === action.matrixKey ? 1 : labelSimilarity(row.label, action.label),
+      position: samePosition(row, action) ? 1 : 0, distance: Math.abs(action.sortOrder - sortOrder),
     })),
-  ).filter(match => match.score >= 0.5).sort((a, b) => b.score - a.score || a.rowNumber - b.rowNumber || a.actionId.localeCompare(b.actionId));
+  ).filter(match => match.score >= 0.5).sort((a, b) => b.score - a.score || b.position - a.position ||
+    a.distance - b.distance || a.rowNumber - b.rowNumber);
   for (const candidate of candidates) {
-    if (!matches.has(candidate.rowNumber) && !used.has(candidate.actionId)) {
-      matches.set(candidate.rowNumber, candidate);
-      used.add(candidate.actionId);
-    }
+    if (matches.has(candidate.rowNumber) || used.has(candidate.actionId)) continue;
+    const ambiguous = candidates.some(other => other.rowNumber === candidate.rowNumber && other.actionId !== candidate.actionId &&
+      !used.has(other.actionId) && other.score === candidate.score && other.position === candidate.position && other.distance === candidate.distance);
+    matches.set(candidate.rowNumber, { rowNumber: candidate.rowNumber, actionId: ambiguous ? null : candidate.actionId,
+      score: candidate.score, matchedBy: "label", ambiguous });
+    if (!ambiguous) used.add(candidate.actionId);
   }
   // Position is only a fallback after every label assignment has been reserved.
-  for (const row of parsed) {
-    if (matches.has(row.rowNumber) || row.lineNumber === null || row.lineOccurrence === null) continue;
-    const target = existing.find(action => !used.has(action.id) && action.postCode === row.postCode &&
-      action.matrixLineNumber !== null && action.matrixOccurrence !== null &&
-      action.matrixLineNumber === row.lineNumber && action.matrixOccurrence === row.lineOccurrence);
+  for (const [sortOrder, row] of parsed.entries()) {
+    if (matches.has(row.rowNumber)) continue;
+    const targets = existing.filter(action => !used.has(action.id) && action.postCode === row.postCode && samePosition(row, action))
+      .sort((a, b) => Math.abs(a.sortOrder - sortOrder) - Math.abs(b.sortOrder - sortOrder));
+    const target = targets[0];
     if (target) {
-      matches.set(row.rowNumber, { rowNumber: row.rowNumber, actionId: target.id,
-        score: labelSimilarity(row.label, target.label), matchedBy: "position" });
-      used.add(target.id);
+      const ambiguous = targets.length > 1 && Math.abs(target.sortOrder - sortOrder) === Math.abs(targets[1].sortOrder - sortOrder);
+      matches.set(row.rowNumber, { rowNumber: row.rowNumber, actionId: ambiguous ? null : target.id,
+        score: labelSimilarity(row.label, target.label), matchedBy: "position", ambiguous });
+      if (!ambiguous) used.add(target.id);
     }
   }
-  return parsed.map(row => matches.get(row.rowNumber) ?? { rowNumber: row.rowNumber, actionId: null, score: 0, matchedBy: "label" });
+  return parsed.map(row => matches.get(row.rowNumber) ?? { rowNumber: row.rowNumber, actionId: null, score: 0, matchedBy: "label", ambiguous: false });
 }
 export function matrixActionValues(row: MatrixAction, currentStatus?: BudgetActionStatus) {
   return {
@@ -102,6 +110,7 @@ export function buildMatrixDiff(parsed: ParsedMatrix, existing: ExistingAction[]
       if (before !== next[field]) changes.push({ field, before, after: next[field] });
     }
     return { ...match, label: row.label, previousLabel: previous?.label,
+      statusPreserved: !!previous && next.status !== row.suggestedStatus,
       kind: !previous ? "new" : changes.length ? "updated" : "unchanged", changes };
   });
   const matchedIds = new Set(matches.map(match => match.actionId));

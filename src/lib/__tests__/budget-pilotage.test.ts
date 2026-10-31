@@ -1,13 +1,13 @@
 import type { BudgetActionStatus } from "@prisma/client";
 import { describe, expect, it } from "vitest";
-import { buildMonthlyReportText, computeActionFigures, computeFiscalYearSummary, computePostSummary, listVigilancePoints } from "../budget-pilotage";
+import { buildMonthlyReportText, computeActionFigures, computeFiscalYearSummary, computePostSummary, isActionSettled, listVigilancePoints } from "../budget-pilotage";
 import { pilotageAction, post } from "./budget-fixtures";
 
 describe("action figures", () => {
   it.each([
     ["CANCELLED", null, null, 0], ["CANCELLED", 20, 90, 20],
-    ["DONE", null, null, 100], ["DONE", 0, null, 0], ["DONE", 20, 90, 20],
-    ["OPTION", 20, 90, 0],
+    ["DONE", null, null, 100], ["DONE", 0, null, 100], ["DONE", 20, 90, 90],
+    ["OPTION", 20, 90, 20],
     ["BUDGETED", null, null, 100], ["BUDGETED", 120, 90, 120], ["BUDGETED", 20, 90, 90],
     ["COMMITTED", null, null, 100], ["COMMITTED", 120, 90, 120],
     ["UNBUDGETED", null, null, 0], ["UNBUDGETED", 20, null, 20], ["UNBUDGETED", 20, 90, 90],
@@ -16,9 +16,9 @@ describe("action figures", () => {
   });
   it("excludes options, unbudgeted and unincluded rows from the budget, with positive overspend", () => {
     for (const patch of [{ status: "OPTION" as const }, { status: "UNBUDGETED" as const }, { includedInBudget: false }]) {
-      expect(computeActionFigures(pilotageAction({ ...patch, actualFederation: 20 }))).toMatchObject({ budget: 0, actual: 20, variance: 20, remaining: -20 });
+      expect(computeActionFigures(pilotageAction({ ...patch, actualFederation: 20 }))).toMatchObject({ budget: 0, actual: 20, variance: 20, remaining: 0 });
     }
-    expect(computeActionFigures(pilotageAction({ actualFederation: 110 }))).toMatchObject({ variance: 10, remaining: -10 });
+    expect(computeActionFigures(pilotageAction({ actualFederation: 110 }))).toMatchObject({ variance: 10, remaining: 0 });
   });
 });
 describe("summaries and vigilance", () => {
@@ -35,7 +35,7 @@ describe("summaries and vigilance", () => {
       pilotageAction({ id: "saving", proposedSaving: true, revisedFederation: 60, estimatedFederation: 0 }),
     ];
     const summary = computeFiscalYearSummary({ fiscalYear: { label: "2026", restitutionAmount: 10 }, posts: [post], actions });
-    expect(summary.totals).toMatchObject({ budget: 160, initialBudget: 160, actual: 20, landing: 50, margin: 110, remaining: 140, options: 40, unbudgeted: 30, proposedSavings: 60, gross: { budget: 300 }, clubIncome: { budget: 100 } });
+    expect(summary.totals).toMatchObject({ budget: 160, initialBudget: 160, actual: 20, landing: 50, margin: 110, remaining: 30, options: 40, unbudgeted: 30, proposedSavings: 60, gross: { budget: 300 }, clubIncome: { budget: 100 } });
     expect(summary.globalMargin).toBe(100);
     expect(summary.totals.counts).toMatchObject({ CANCELLED: 1, OPTION: 1, UNBUDGETED: 1, BUDGETED: 1, COMMITTED: 0, DONE: 0 });
     expect(computePostSummary({ ...post, id: "other" }, actions).budget).toBe(0);
@@ -110,5 +110,47 @@ describe("past events without expenditure", () => {
     const summary = computeFiscalYearSummary({ fiscalYear: { label: "2026", restitutionAmount: 0 }, posts: [{ ...post, kind }], actions });
     const points = listVigilancePoints(summary, actions, { asOfDate: new Date(date), fiscalYearLabel: "2026" });
     expect(points.some(point => point.message.includes("événement passé sans dépense"))).toBe(expected);
+  });
+});
+
+describe("settlement and remaining invoices", () => {
+  const context = { asOfDate: new Date("2026-10-25"), fiscalYearLabel: "2026" };
+  it.each([
+    [true, "BUDGETED", "Stage", null, true], [false, "DONE", "Stage FAIT", 1, false],
+    [null, "DONE", "Stage FAIT", null, true], [null, "DONE", "Stage FÂIT", null, true],
+    [null, "DONE", "Stage forfait", null, false], [null, "BUDGETED", "Stage FAIT", 1, false],
+    [null, "DONE", "Stage", 7, true], [null, "DONE", "Stage", 8, true],
+    [null, "DONE", "Stage", 9, false], [null, "DONE", "Stage", 10, false],
+    [null, "DONE", "Stage", null, false],
+  ] as const)("settles %s / %s / %s / month %s as %s", (settled, status, label, plannedMonth, expected) => {
+    const action = pilotageAction({ settled, status, label, plannedMonth, actualFederation: 20 });
+    expect(isActionSettled(action, context)).toBe(expected);
+    expect(computeActionFigures(action, context)).toMatchObject({ actual: 20, remaining: expected ? 0 : 80, landing: expected ? 20 : 100 });
+  });
+  it("uses the fiscal year across year boundaries and requires a situation date for month inference", () => {
+    const action = pilotageAction({ status: "DONE", plannedMonth: 12 });
+    expect(isActionSettled(action, { asOfDate: new Date("2027-01-01"), fiscalYearLabel: "2026" })).toBe(false);
+    expect(isActionSettled(action, { asOfDate: new Date("2027-02-01"), fiscalYearLabel: "2026" })).toBe(true);
+    expect(isActionSettled(action)).toBe(false);
+  });
+  it("keeps options at zero budget even with adjustments, includes actuals and clamps remaining to zero", () => {
+    expect(computeActionFigures(pilotageAction({ status: "OPTION", adjustmentFederation: 50, actualFederation: 20 })))
+      .toMatchObject({ budget: 0, actual: 20, remaining: 0, landing: 20 });
+    expect(computeActionFigures(pilotageAction({ status: "OPTION" }))).toMatchObject({ actual: 0, remaining: 0, landing: 0 });
+    expect(computeActionFigures(pilotageAction({ adjustmentFederation: 50, actualFederation: 20 })))
+      .toMatchObject({ budget: 150, remaining: 130, landing: 150 });
+    expect(computeActionFigures(pilotageAction({ settled: true, actualFederation: null }))).toMatchObject({ remaining: 0, landing: 0 });
+  });
+  it("aggregates actual plus remaining and keeps the global margin based on landing", () => {
+    const actions = [pilotageAction({ status: "DONE", plannedMonth: 7, actualFederation: 20 }),
+      pilotageAction({ status: "DONE", plannedMonth: 9, actualFederation: 30 }),
+      pilotageAction({ status: "OPTION", actualFederation: 10 })];
+    const summary = computeFiscalYearSummary({ fiscalYear: { label: "2026", restitutionAmount: 5 }, posts: [post], actions, asOfDate: context.asOfDate });
+    expect(summary.totals).toMatchObject({ budget: 200, actual: 60, remaining: 70, landing: 130 });
+    expect(summary.posts[0]).toMatchObject({ actual: 60, remaining: 70, landing: 130 });
+    expect(summary.globalMargin).toBe(65);
+    const report = buildMonthlyReportText(summary, [], context.asOfDate);
+    expect(report).toContain("Reste à venir : 70 €");
+    expect(report).toContain("Réalisé : 60 € | Reste à venir : 70 € | Atterrissage (total) : 130 €");
   });
 });

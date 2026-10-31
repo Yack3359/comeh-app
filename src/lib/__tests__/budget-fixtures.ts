@@ -14,7 +14,7 @@ export function matrixAction(overrides: Partial<MatrixAction> = {}): MatrixActio
 export function existingAction(overrides: Partial<ExistingAction> = {}): ExistingAction {
   return {
     id: "old", postCode: "B", label: "Stage Laupheim M20 avril", matrixKey: "avril laupheim m20 stage",
-    matrixLineNumber: 1, matrixOccurrence: 0, estimatedFederation: null,
+    matrixLineNumber: 1, matrixOccurrence: 0, sortOrder: 0, estimatedFederation: null,
     status: "BUDGETED", includedInBudget: true, proposedSaving: false,
     revisedGross: 5000, revisedClubIncome: 1000, revisedFederation: 4000,
     actualGross: null, actualClubIncome: null, actualFederation: null, previousYearAmount: 3500, notes: null, ...overrides,
@@ -28,7 +28,7 @@ export function parsedMatrix(actions = [matrixAction()]): ParsedMatrix {
 }
 export const post: PilotagePost = { id: "post-b", code: "B", label: "Stages séniors", kind: "TRAINING_CAMP" };
 export function pilotageAction(overrides: Partial<PilotageAction> = {}): PilotageAction {
-  return { id: "action", postId: post.id, label: "Stage", plannedMonth: null, status: "BUDGETED", includedInBudget: true, proposedSaving: false,
+  return { id: "action", postId: post.id, label: "Stage", plannedMonth: null, settled: null, status: "BUDGETED", includedInBudget: true, proposedSaving: false,
     initialFederation: 80, revisedFederation: 100, adjustmentFederation: 0, estimatedFederation: null, actualFederation: null,
     revisedGross: 150, revisedClubIncome: 50, actualGross: null, actualClubIncome: null, ...overrides };
 }

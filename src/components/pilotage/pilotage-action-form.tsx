@@ -16,6 +16,7 @@ export function PilotageActionForm({ action, initialPostId, posts, onClose, onSa
   const [postId, setPostId] = useState(action?.postId ?? initialPostId);
   const [label, setLabel] = useState(action?.label ?? "");
   const [status, setStatus] = useState<BudgetActionStatus>(action?.status ?? "UNBUDGETED");
+  const [settled, setSettled] = useState(action?.settled == null ? "auto" : String(action.settled));
   const [gross, setGross] = useState(String(action?.revisedGross ?? 0));
   const [income, setIncome] = useState(String(action?.revisedClubIncome ?? 0));
   const [federation, setFederation] = useState(String(action?.revisedFederation ?? 0));
@@ -42,7 +43,7 @@ export function PilotageActionForm({ action, initialPostId, posts, onClose, onSa
   }
   function submit(event: FormEvent) {
     event.preventDefault();
-    void send({ label, status, revisedGross: Number(gross), revisedClubIncome: Number(income), revisedFederation: Number(federation),
+    void send({ label, status, settled: settled === "auto" ? null : settled === "true", revisedGross: Number(gross), revisedClubIncome: Number(income), revisedFederation: Number(federation),
       estimatedFederation: estimate.trim() === "" ? null : Number(estimate), plannedMonth: month === "none" ? null : Number(month), fencingCategories: categories, comment: comment || null,
       ...(action?.matrixKey != null ? {} : { notes: notes || null }),
       ...(action ? { adjustmentFederation: Number(adjustment), ...(revisionReason.trim() ? { revisionReason } : {}), ...(adjustmentReason.trim() ? { adjustmentReason } : {}) } : { postId }),
@@ -61,6 +62,7 @@ export function PilotageActionForm({ action, initialPostId, posts, onClose, onSa
         {!action && <FieldSelect id="action-post" label="Poste" value={postId} onChange={setPostId} options={posts.map(post => ({ value: post.id, label: post.code + " — " + post.label }))} />}
         <div className="space-y-1.5"><Label htmlFor="action-label">Libellé</Label><Input id="action-label" value={label} onChange={event => setLabel(event.target.value)} required maxLength={1000} /></div>
         <FieldSelect id="action-status" label="Statut" value={status} onChange={value => setStatus(value as BudgetActionStatus)} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} />
+        <FieldSelect id="action-settled" label="Soldée" value={settled} onChange={setSettled} options={[{ value: "auto", label: "Automatique" }, { value: "true", label: "Oui" }, { value: "false", label: "Non" }]} />
         <div className="grid gap-4 sm:grid-cols-3">{[
           { id: "action-federation", label: action ? "Montant révisé FFE (€)" : "Montant budgété FFE (€)", value: federation, set: setFederation },
           { id: "action-gross", label: action ? "Montant révisé brut (€)" : "Montant budgété brut (€)", value: gross, set: setGross },

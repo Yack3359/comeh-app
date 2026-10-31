@@ -3,22 +3,24 @@ import { Prisma } from "@prisma/client";
 import { matrixAction, parsedMatrix } from "./budget-fixtures";
 
 const db = vi.hoisted(() => ({
+  $queryRaw: vi.fn(), auditLog: { create: vi.fn() },
   fiscalYear: { findUniqueOrThrow: vi.fn(), update: vi.fn() },
   budgetPost: { findMany: vi.fn(), upsert: vi.fn() },
   budgetAction: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
-  season: { findMany: vi.fn() }, budgetSnapshot: { create: vi.fn() },
+  season: { findMany: vi.fn() }, budgetSnapshot: { create: vi.fn(), findFirst: vi.fn() },
 }));
 const transaction = vi.hoisted(() => vi.fn());
 const auditLogCreate = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: transaction, auditLog: { create: auditLogCreate } } }));
-import { applyBudgetMatrix, inferredSeasonLabel } from "../budget-matrix-apply";
+import { applyBudgetMatrix, inferredSeasonLabel, MatrixChronologyError } from "../budget-matrix-apply";
+import { getAuditContext, runWithAuditContext } from "../audit-context";
 import { matrixActionValues } from "../budget-matrix-diff";
 
 const decimal = (value: number) => new Prisma.Decimal(value);
 const existing = () => ({
   id: "old", postId: "post-b", label: "Stage Laupheim M20 avril", matrixKey: "avril laupheim m20 stage",
   matrixLineNumber: null, matrixOccurrence: null,
-  status: "CANCELLED", includedInBudget: true, proposedSaving: false, origin: "RENEWED",
+  status: "CANCELLED", settled: false, includedInBudget: true, proposedSaving: false, origin: "RENEWED",
   initialGross: decimal(6000), initialClubIncome: decimal(1000), initialFederation: decimal(5000),
   revisedGross: decimal(5000), revisedClubIncome: decimal(1000), revisedFederation: decimal(4000),
   adjustmentFederation: decimal(0), adjustmentReason: null,
@@ -47,10 +49,10 @@ describe("matrix application", () => {
     const input = params();
     input.parsed.actions[0].federation = 4500;
     const result = await applyBudgetMatrix(input);
-    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { maxWait: 20000, timeout: 120000 });
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { maxWait: 20000, timeout: 100000 });
     const data = db.budgetAction.update.mock.calls[0][0].data;
     expect(data).toMatchObject({ status: "CANCELLED", revisedFederation: 4500, matrixLineNumber: 1, matrixOccurrence: 0, fencingCategories: ["U23"], plannedMonth: 10, seasonId: "manual-season" });
-    for (const field of ["initialGross", "initialClubIncome", "initialFederation", "estimatedFederation", "revisionReason", "competitionId"]) expect(data).not.toHaveProperty(field);
+    for (const field of ["initialGross", "initialClubIncome", "initialFederation", "estimatedFederation", "revisionReason", "competitionId", "settled", "comment"]) expect(data).not.toHaveProperty(field);
     const snapshot = db.budgetSnapshot.create.mock.calls[0][0].data;
     expect(snapshot).toMatchObject({ importedById: "user", sourceFileName: "matrice.xlsx", fileUrl: "budget-matrices/file.xlsx", data: { totals: { budget: 4500 }, restitution: 500 } });
     expect(snapshot.data.actions[0]).toMatchObject({ revisedFederation: 4500, initialFederation: 5000, estimatedFederation: 1200 });
@@ -85,7 +87,7 @@ describe("matrix application", () => {
     });
     expect(db.budgetAction.create.mock.calls[0][0].data).not.toHaveProperty("comment");
     expect(result).toMatchObject({ created: 1, missing: 1 });
-    expect(auditLogCreate).toHaveBeenLastCalledWith({ data: expect.objectContaining({
+    expect(db.auditLog.create).toHaveBeenLastCalledWith({ data: expect.objectContaining({
       action: "IMPORT_MATRIX", entityType: "BudgetSnapshot", userId: "user",
       diffJson: expect.objectContaining({ created: 1, missing: 1 }),
     }) });
@@ -146,5 +148,66 @@ describe("matrix application", () => {
   });
   it.each([[1, "25/26"], [8, "25/26"], [9, "26/27"], [12, "26/27"], [null, null]] as const)("infers season for month %s", (month: number | null, label: string | null) => {
     expect(inferredSeasonLabel("2026", month)).toBe(label);
+  });
+  it("waits for the fiscal year lock before reading the latest snapshot or actions", async () => {
+    let unlock!: () => void;
+    db.$queryRaw.mockReturnValue(new Promise<void>(resolve => { unlock = resolve; }));
+    const pending = applyBudgetMatrix(params());
+    expect(db.$queryRaw.mock.calls[0][0].join("?")).toBe("SELECT id FROM fiscal_years WHERE id = ? FOR UPDATE");
+    expect(db.$queryRaw.mock.calls[0][1]).toBe("fy");
+    expect(db.budgetSnapshot.findFirst).not.toHaveBeenCalled();
+    expect(db.budgetAction.findMany).not.toHaveBeenCalled();
+    unlock();
+    await pending;
+    expect(db.budgetSnapshot.findFirst).toHaveBeenCalledWith({ where: { fiscalYearId: "fy" }, orderBy: { asOfDate: "desc" }, select: { asOfDate: true } });
+  });
+  it("rejects an older situation before any mutation and allows the same date", async () => {
+    db.budgetSnapshot.findFirst.mockResolvedValue({ asOfDate: new Date("2026-10-25") });
+    await expect(applyBudgetMatrix(params())).rejects.toBeInstanceOf(MatrixChronologyError);
+    expect(db.budgetPost.upsert).not.toHaveBeenCalled();
+    expect(db.budgetAction.update).not.toHaveBeenCalled();
+    expect(db.budgetSnapshot.create).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+    await applyBudgetMatrix({ ...params(), asOfDate: "2026-10-25" });
+    expect(db.budgetSnapshot.create).toHaveBeenCalledOnce();
+  });
+  it("imports an older historical snapshot from the file without changing live actions, posts or restitution", async () => {
+    db.budgetSnapshot.findFirst.mockResolvedValue({ asOfDate: new Date("2026-10-25") });
+    const input = params();
+    input.parsed.restitutionAmount = 100;
+    input.parsed.actions[0] = matrixAction({ federation: 2000, actualFederation: 800, suggestedStatus: "DONE" });
+    const result = await applyBudgetMatrix({ ...input, historicalOnly: true });
+    expect(result).toMatchObject({ historicalOnly: true, created: 0, updated: 0 });
+    expect(db.budgetSnapshot.create.mock.calls[0][0].data.data).toMatchObject({
+      restitution: 100, totals: { budget: 2000, actual: 800, remaining: 0, landing: 800 },
+      actions: [expect.objectContaining({ revisedFederation: 2000, actualFederation: 800, settled: null })],
+    });
+    expect(db.budgetAction.findMany).not.toHaveBeenCalled();
+    expect(db.budgetAction.create).not.toHaveBeenCalled();
+    expect(db.budgetAction.update).not.toHaveBeenCalled();
+    expect(db.budgetPost.upsert).not.toHaveBeenCalled();
+    expect(db.fiscalYear.update).not.toHaveBeenCalled();
+    expect(db.auditLog.create.mock.calls[0][0].data.diffJson.historicalOnly).toBe(true);
+  });
+  it("requires manual resolution of ambiguous matches before mutating", async () => {
+    db.budgetAction.findMany.mockResolvedValue([existing(), { ...existing(), id: "duplicate" }]);
+    await expect(applyBudgetMatrix(params())).rejects.toThrow("Rapprochement ambigu");
+    expect(db.budgetAction.update).not.toHaveBeenCalled();
+    expect(db.budgetPost.upsert).not.toHaveBeenCalled();
+    await applyBudgetMatrix({ ...params(), overrides: { 8: "old" } });
+    expect(db.budgetAction.update).toHaveBeenCalledOnce();
+  });
+  it("writes the import audit inside the suppressed transaction and propagates an audit failure", async () => {
+    db.auditLog.create.mockImplementation(async () => {
+      expect(getAuditContext()).toBeUndefined();
+      expect(db.budgetSnapshot.create).toHaveBeenCalledOnce();
+      throw new Error("audit unavailable");
+    });
+    await runWithAuditContext("user", async () => {
+      await expect(applyBudgetMatrix(params())).rejects.toThrow("audit unavailable");
+      expect(getAuditContext()?.userId).toBe("user");
+    });
+    expect(auditLogCreate).not.toHaveBeenCalled();
+    expect(db.auditLog.create).toHaveBeenCalledOnce();
   });
 });

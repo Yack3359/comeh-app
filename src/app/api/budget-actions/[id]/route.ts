@@ -5,7 +5,7 @@ import { runAsAuthenticatedUser } from "@/lib/api-auth";
 import { apiErrorResponse, invalidDataResponse } from "@/lib/api-response";
 import { normalizeMatrixLabel } from "@/lib/budget-matrix";
 import { serializeBudgetAction } from "@/lib/budget-pilotage-data";
-import { budgetActionUpdateSchema, pilotageParamsSchema, requiresRevisionReason, validateAdjustment } from "@/lib/budget-pilotage-validations";
+import { budgetActionUpdateSchema, pilotageParamsSchema, requiresRevisionReason, validateAdjustment, includedInBudgetForStatus } from "@/lib/budget-pilotage-validations";
 import { prisma } from "@/lib/prisma";
 
 const writeRoles = [Role.ADMIN, Role.COMEH_MEMBER] as const;
@@ -25,7 +25,8 @@ export async function PATCH(request: Request, context: Context) {
         }
         validateAdjustment(serializeBudgetAction(current), body.data);
         return tx.budgetAction.update({ where: { id: current.id }, data: {
-          ...body.data, ...(body.data.label !== undefined && current.matrixKey !== null ? { matrixKey: normalizeMatrixLabel(body.data.label) } : {}),
+          ...body.data, ...(body.data.status !== undefined ? { includedInBudget: includedInBudgetForStatus(body.data.status, current.includedInBudget) } : {}),
+          ...(body.data.label !== undefined && current.matrixKey !== null ? { matrixKey: normalizeMatrixLabel(body.data.label) } : {}),
         } });
       });
       return NextResponse.json(serializeBudgetAction(action));

@@ -115,6 +115,9 @@ function dateFrom(text: string, fileName = false): string | null {
 export async function parseBudgetMatrix(buffer: Buffer | ArrayBuffer, fileName?: string): Promise<ParsedMatrix> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as Parameters<typeof workbook.xlsx.load>[0]);
+  if (workbook.worksheets.some(sheet => sheet.rowCount > 2000 || sheet.columnCount > 60)) {
+    throw new Error("La matrice dépasse la limite de 2 000 lignes ou 60 colonnes par feuille");
+  }
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error("Le classeur ne contient aucune feuille");
   const result: ParsedMatrix = {

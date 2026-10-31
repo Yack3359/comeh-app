@@ -8,8 +8,13 @@ export const matrixFileSchema = z.custom<File>(value =>
   .refine(file => file.size > 0, "Le fichier sélectionné est vide")
   .refine(file => file.size <= 5 * 1024 * 1024, "Fichier trop volumineux : la limite est de 5 Mo");
 
-export class MatrixUploadError extends Error {}
+export class MatrixUploadError extends Error {
+  constructor(message: string, public readonly status = 400) { super(message); }
+}
 export async function readMatrixUpload(request: Request) {
+  if (Number(request.headers.get("content-length")) > 6 * 1024 * 1024) {
+    throw new MatrixUploadError("Fichier trop volumineux : le formulaire dépasse 6 Mo", 413);
+  }
   const form = await request.formData().catch(() => { throw new MatrixUploadError("Le formulaire d’upload est invalide"); });
   const validation = matrixFileSchema.safeParse(form.get("file"));
   if (!validation.success) throw new MatrixUploadError(validation.error.issues[0].message);

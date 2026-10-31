@@ -37,15 +37,15 @@ describe("matrix matching", () => {
 });
 describe("matrix diff and status rules", () => {
   it.each([
-    ["CANCELLED", "BUDGETED", "CANCELLED"], ["COMMITTED", "OPTION", "OPTION"], ["COMMITTED", "BUDGETED", "COMMITTED"], ["CANCELLED", "UNBUDGETED", "UNBUDGETED"],
+    ["CANCELLED", "BUDGETED", "CANCELLED"], ["COMMITTED", "OPTION", "OPTION"], ["COMMITTED", "BUDGETED", "COMMITTED"], ["CANCELLED", "UNBUDGETED", "CANCELLED"],
     ["CANCELLED", "DONE", "DONE"], ["COMMITTED", "DONE", "DONE"],
-    ["DONE", "BUDGETED", "DONE"], ["UNBUDGETED", "BUDGETED", "BUDGETED"],
+    ["DONE", "BUDGETED", "DONE"], ["DONE", "OPTION", "DONE"], ["DONE", "UNBUDGETED", "DONE"], ["CANCELLED", "OPTION", "CANCELLED"], ["UNBUDGETED", "BUDGETED", "BUDGETED"],
   ] as const)("imports %s / %s as %s", (current: Parameters<typeof importedActionStatus>[0], suggested: Parameters<typeof importedActionStatus>[1], expected: string) => {
     expect(importedActionStatus(current, suggested)).toBe(expected);
   });
   it("returns unchanged actions and preserves CANCELLED in the preview", () => {
     const result = buildMatrixDiff(parsedMatrix(), [existingAction({ status: "CANCELLED" })]);
-    expect(result.actions[0]).toMatchObject({ kind: "unchanged", changes: [] });
+    expect(result.actions[0]).toMatchObject({ kind: "unchanged", statusPreserved: true, changes: [] });
   });
   it("reports modified amounts, labels, post labels, new rows and missing actions", () => {
     const parsed = parsedMatrix([matrixAction({ gross: 6000, label: "Stage Laupheim M20 avril => novi sad" }), matrixAction({ rowNumber: 10, label: "Tokyo", matrixKey: "tokyo" })]);
@@ -97,5 +97,36 @@ describe("position fallback", () => {
       { field: "matrixOccurrence", before: null, after: 0 },
     ]));
     expect(buildMatrixDiff(parsed, [existingAction({ estimatedFederation: 2000 })]).actions[0].changes.some(change => change.field === "estimatedFederation")).toBe(false);
+  });
+});
+
+describe("matching ties and recalculated overrides", () => {
+  it("prefers the same line and occurrence before sort order, independently of ids or input order", () => {
+    const exact = existingAction({ id: "z", sortOrder: 10 });
+    const other = existingAction({ id: "a", matrixOccurrence: 1, sortOrder: 0 });
+    for (const existing of [[exact, other], [other, exact]]) {
+      expect(matchMatrixActions([matrixAction()], existing)[0]).toMatchObject({ actionId: "z", ambiguous: false });
+    }
+  });
+  it("uses sort order distance only after equal score and position", () => {
+    const existing = [existingAction({ id: "far", sortOrder: 10 }), existingAction({ id: "near", sortOrder: 1 })];
+    expect(matchMatrixActions([matrixAction()], existing)[0]).toMatchObject({ actionId: "near", ambiguous: false });
+  });
+  it("marks unresolved equal candidates ambiguous, including position fallbacks", () => {
+    const existing = [existingAction(), existingAction({ id: "duplicate" })];
+    for (const row of [matrixAction(), matrixAction({ label: "Tokyo Japon", matrixKey: "japon tokyo" })]) {
+      expect(buildMatrixDiff(parsedMatrix([row]), existing).actions[0]).toMatchObject({ actionId: null, ambiguous: true });
+      expect(buildMatrixDiff(parsedMatrix([row]), existing, { 8: "old" }).actions[0]).toMatchObject({ actionId: "old", ambiguous: false });
+      expect(buildMatrixDiff(parsedMatrix([row]), existing, { 8: null }).actions[0]).toMatchObject({ actionId: null, ambiguous: false, kind: "new" });
+    }
+  });
+  it("recomputes changes, preserved status and missing actions after a manual match", () => {
+    const existing = [existingAction(), existingAction({ id: "manual", label: "Autre", matrixKey: "autre", revisedFederation: 900, status: "DONE" })];
+    const before = buildMatrixDiff(parsedMatrix(), existing);
+    const after = buildMatrixDiff(parsedMatrix(), existing, { 8: "manual" });
+    expect(before.actions[0]).toMatchObject({ actionId: "old", kind: "unchanged", statusPreserved: false });
+    expect(after.actions[0]).toMatchObject({ actionId: "manual", kind: "updated", statusPreserved: true });
+    expect(after.actions[0].changes).toContainEqual({ field: "revisedFederation", before: 900, after: 4000 });
+    expect(after.missingActions.map(action => action.id)).toEqual(["old"]);
   });
 });

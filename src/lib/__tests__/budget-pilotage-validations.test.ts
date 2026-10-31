@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { budgetActionCreateSchema, budgetActionUpdateSchema, matrixApplySchema, requiresRevisionReason, restitutionUpdateSchema } from "../budget-pilotage-validations";
-import { matrixFileSchema } from "../budget-matrix-upload";
+import { describe, expect, it, vi } from "vitest";
+import { budgetActionCreateSchema, budgetActionUpdateSchema, matrixApplySchema, requiresRevisionReason, restitutionUpdateSchema, includedInBudgetForStatus, previewFieldsSchema } from "../budget-pilotage-validations";
+import { matrixFileSchema, readMatrixUpload } from "../budget-matrix-upload";
 
 describe("pilotage API validation", () => {
   it("defaults manual actions to UNBUDGETED and rejects protected/unknown fields", () => {
@@ -41,5 +41,43 @@ describe("pilotage API validation", () => {
     for (const input of [null, "file", file("matrice.xls", 100), file("matrice.xlsx", 0), file("matrice.xlsx", 5 * 1024 * 1024 + 1)]) {
       expect(matrixFileSchema.safeParse(input).success).toBe(false);
     }
+  });
+});
+
+describe("manual status and settlement validation", () => {
+  it.each(["BUDGETED", "COMMITTED", "DONE", "OPTION", "UNBUDGETED", "CANCELLED"] as const)("synchronizes inclusion for %s", status => {
+    for (const current of [false, true]) {
+      expect(includedInBudgetForStatus(status, current)).toBe(status === "CANCELLED" ? current : ["BUDGETED", "COMMITTED", "DONE"].includes(status));
+    }
+  });
+  it("accepts automatic and explicit settlement on create and update", () => {
+    for (const settled of [null, false, true]) {
+      expect(budgetActionCreateSchema.parse({ postId: "post", label: "Action", settled }).settled).toBe(settled);
+      expect(budgetActionUpdateSchema.parse({ settled })).toEqual({ settled });
+    }
+    expect(budgetActionCreateSchema.parse({ postId: "post", label: "Action" }).settled).toBeNull();
+    expect(budgetActionUpdateSchema.safeParse({ settled: "true" }).success).toBe(false);
+  });
+  it("validates preview overrides identically to apply and restricts historicalOnly to a boolean", () => {
+    for (const overrides of [{ 8: null }, { 8: "action" }, { 0: null }, { 8: "" }, { 8: 123 }, []]) {
+      expect(previewFieldsSchema.safeParse({ overrides }).success).toBe(matrixApplySchema.safeParse({ fiscalYearLabel: "2026", asOfDate: "2026-10-25", overrides }).success);
+    }
+    expect(matrixApplySchema.parse({ fiscalYearLabel: "2026", asOfDate: "2026-10-25" }).historicalOnly).toBe(false);
+    expect(matrixApplySchema.parse({ fiscalYearLabel: "2026", asOfDate: "2026-10-25", historicalOnly: true }).historicalOnly).toBe(true);
+    expect(matrixApplySchema.safeParse({ fiscalYearLabel: "2026", asOfDate: "2026-10-25", historicalOnly: "true" }).success).toBe(false);
+  });
+});
+describe("upload request size", () => {
+  it("rejects more than 6 MiB before reading multipart data", async () => {
+    const request = new Request("http://localhost/preview", { method: "POST", headers: { "content-length": String(6 * 1024 * 1024 + 1) } });
+    const formData = vi.spyOn(request, "formData");
+    await expect(readMatrixUpload(request)).rejects.toMatchObject({ status: 413 });
+    expect(formData).not.toHaveBeenCalled();
+  });
+  it.each([null, String(6 * 1024 * 1024)])("reads multipart data at an allowed or missing length (%s)", async length => {
+    const request = new Request("http://localhost/preview", { method: "POST", headers: length ? { "content-length": length } : {} });
+    const formData = vi.spyOn(request, "formData").mockResolvedValue(new FormData());
+    await expect(readMatrixUpload(request)).rejects.toMatchObject({ status: 400 });
+    expect(formData).toHaveBeenCalledOnce();
   });
 });

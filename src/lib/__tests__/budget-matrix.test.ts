@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { inferEstimateFromLabel, inferFencingCategories, inferPlannedMonth, normalizeMatrixLabel, parseBudgetMatrix } from "../budget-matrix";
-import { computeActionFigures } from "../budget-pilotage";
-import { matrixWorkbook } from "./budget-fixtures";
+import { computeActionFigures, computeFiscalYearSummary, isActionSettled } from "../budget-pilotage";
+import { matrixWorkbook, pilotageAction } from "./budget-fixtures";
 
 describe("parseBudgetMatrix", () => {
   it("reads the FFE layout, cached formulas, inclusions and ignored footer without merging duplicate numbers", async () => {
@@ -141,7 +141,7 @@ describe("Lot 1a-bis parser regressions", () => {
     let parsed = await parseBudgetMatrix(await workbook.xlsx.writeBuffer());
     const operating = parsed.actions.find(action => action.rowNumber === 5)!;
     expect(operating.suggestedStatus).toBe("BUDGETED");
-    expect(computeActionFigures({ ...operating, status: operating.suggestedStatus, revisedFederation: operating.federation ?? 0, adjustmentFederation: 0 }).landing).toBe(7070);
+    expect(computeActionFigures({ ...operating, status: operating.suggestedStatus, revisedFederation: operating.federation ?? 0, adjustmentFederation: 0, settled: null }).landing).toBe(7070);
     sheet.getCell("C5").value = "Frais janvier => FAIT";
     parsed = await parseBudgetMatrix(await workbook.xlsx.writeBuffer());
     expect(parsed.actions.find(action => action.rowNumber === 5)?.suggestedStatus).toBe("DONE");
@@ -163,4 +163,42 @@ describe("Lot 1a-bis parser regressions", () => {
     ["Berne (27K)", 27000], ["Grec => 6k", 6000], ["Almeira (13k)", 13000],
     ["6k puis 2,5 K", 2500], ["1.25k", 1250], ["27 euros", null], ["6km", null],
   ] as const)("infers the final estimate in %s", (label, expected) => expect(inferEstimateFromLabel(label)).toBe(expected));
+});
+
+describe("worksheet bounds", () => {
+  it.each([[2001, 1], [1, 61]])("rejects a sheet extending to row %s / column %s", async (row, column) => {
+    const workbook = matrixWorkbook();
+    workbook.worksheets[0].getCell(row, column).value = "too large";
+    await expect(parseBudgetMatrix(await workbook.xlsx.writeBuffer())).rejects.toThrow("2 000 lignes ou 60 colonnes");
+  });
+  it("accepts exactly 2000 rows and 60 columns and checks secondary sheets too", async () => {
+    const workbook = matrixWorkbook();
+    workbook.worksheets[0].getCell(2000, 60).value = "footer";
+    await expect(parseBudgetMatrix(await workbook.xlsx.writeBuffer())).resolves.toMatchObject({ fiscalYearLabel: "2026" });
+    workbook.addWorksheet("Oversized").getCell(2001, 1).value = "too large";
+    await expect(parseBudgetMatrix(await workbook.xlsx.writeBuffer())).rejects.toThrow("2 000 lignes ou 60 colonnes");
+  });
+});
+
+describe("25 October situation", () => {
+  it("settles completed fait and older rows while preserving the matrix actual total", async () => {
+    const parsed = await parseBudgetMatrix(await matrixWorkbook().xlsx.writeBuffer());
+    const context = { asOfDate: new Date(parsed.asOfDate!), fiscalYearLabel: parsed.fiscalYearLabel! };
+    const posts = parsed.posts.map(post => ({ ...post, id: post.code }));
+    const actions = parsed.actions.map(row => pilotageAction({
+      id: String(row.rowNumber), postId: row.postCode, label: row.label, status: row.suggestedStatus,
+      includedInBudget: row.includedInBudget, plannedMonth: row.plannedMonth,
+      revisedFederation: row.federation ?? 0, estimatedFederation: row.estimatedFederation, actualFederation: row.actualFederation,
+    }));
+    const completed = actions.filter(action => action.status === "DONE");
+    expect(completed.map(action => action.id)).toEqual(["9", "18"]);
+    for (const action of completed) {
+      expect(isActionSettled(action, context)).toBe(true);
+      expect(computeActionFigures(action, context).remaining).toBe(0);
+    }
+    const summary = computeFiscalYearSummary({ fiscalYear: { label: "2026", restitutionAmount: parsed.restitutionAmount! }, posts, actions, asOfDate: context.asOfDate });
+    expect(summary.totals.actual).toBe(18834);
+    expect(summary.totals.actual).toBe(parsed.actions.reduce((sum, action) => sum + (action.actualFederation ?? 0), 0));
+    expect(summary.totals.landing - summary.totals.actual).toBe(summary.totals.remaining);
+  });
 });

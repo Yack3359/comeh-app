@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { runWithoutAudit } from "@/lib/audit-context";
 import { prisma } from "@/lib/prisma";
 import type { ParsedMatrix } from "./budget-matrix";
-import { buildMatrixDiff, matrixActionValues, type MatrixOverrides } from "./budget-matrix-diff";
+import { buildMatrixDiff, matrixActionValues, MatrixMatchError, type MatrixOverrides } from "./budget-matrix-diff";
 import { computeFiscalYearSummary } from "./budget-pilotage";
 import { existingMatrixAction, serializeBudgetAction } from "./budget-pilotage-data";
 
@@ -12,26 +12,53 @@ export function inferredSeasonLabel(fiscalYearLabel: string, month: number | nul
   const start = month >= 9 ? year : year - 1;
   return String(start % 100).padStart(2, "0") + "/" + String((start + 1) % 100).padStart(2, "0");
 }
-export async function applyBudgetMatrix({ parsed, fiscalYearId, asOfDate, overrides, userId, fileName, fileUrl }: {
+export class MatrixChronologyError extends Error {}
+type ApplyMatrixInput = {
   parsed: ParsedMatrix; fiscalYearId: string; asOfDate: string; overrides?: MatrixOverrides;
-  userId: string; fileName: string; fileUrl?: string | null;
-}) {
-  const result = await runWithoutAudit(() => applyInTransaction({ parsed, fiscalYearId, asOfDate, overrides, userId, fileName, fileUrl }));
-  await prisma.auditLog.create({ data: {
-    userId, action: "IMPORT_MATRIX", entityType: "BudgetSnapshot", entityId: result.snapshotId,
-    diffJson: { fileName, asOfDate, created: result.created, updated: result.updated, unchanged: result.unchanged, missing: result.missing },
-  } });
-  return result;
+  userId: string; fileName: string; fileUrl?: string | null; historicalOnly?: boolean;
+};
+export async function applyBudgetMatrix(input: ApplyMatrixInput) {
+  return runWithoutAudit(() => applyInTransaction(input));
 }
-function applyInTransaction({ parsed, fiscalYearId, asOfDate, overrides, userId, fileName, fileUrl }: {
-  parsed: ParsedMatrix; fiscalYearId: string; asOfDate: string; overrides?: MatrixOverrides;
-  userId: string; fileName: string; fileUrl?: string | null;
-}) {
+function applyInTransaction({ parsed, fiscalYearId, asOfDate, overrides, userId, fileName, fileUrl, historicalOnly = false }: ApplyMatrixInput) {
   return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM fiscal_years WHERE id = ${fiscalYearId} FOR UPDATE`;
     let fiscalYear = await tx.fiscalYear.findUniqueOrThrow({ where: { id: fiscalYearId } });
+    const situationDate = new Date(asOfDate + "T00:00:00.000Z");
+    const latest = await tx.budgetSnapshot.findFirst({ where: { fiscalYearId }, orderBy: { asOfDate: "desc" }, select: { asOfDate: true } });
+    if (!historicalOnly && latest && situationDate < latest.asOfDate) {
+      throw new MatrixChronologyError("Cette matrice est antérieure au dernier snapshot de l’exercice. Cochez « Importer comme historique seulement » pour la conserver sans modifier les actions.");
+    }
+    async function saveSnapshot(data: object, counts: { created: number; updated: number; unchanged: number; missing: number }) {
+      const snapshot = await tx.budgetSnapshot.create({ data: {
+        fiscalYearId, asOfDate: situationDate, sourceFileName: fileName, fileUrl: fileUrl ?? null, importedById: userId,
+        data: JSON.parse(JSON.stringify(data)) as Prisma.InputJsonValue,
+      } });
+      await tx.auditLog.create({ data: {
+        userId, action: "IMPORT_MATRIX", entityType: "BudgetSnapshot", entityId: snapshot.id,
+        diffJson: { fileName, asOfDate, historicalOnly, ...counts },
+      } });
+      return { snapshotId: snapshot.id, ...counts, ...(historicalOnly ? { historicalOnly: true } : {}) };
+    }
+    if (historicalOnly) {
+      // Reconstruct the uploaded situation independently of today's actions and manual decisions.
+      const posts = parsed.posts.map(post => ({ ...post, id: "matrix-post-" + post.code }));
+      const actions = parsed.actions.map((row, index) => ({
+        ...matrixActionValues(row), id: "matrix-row-" + row.rowNumber, postId: "matrix-post-" + row.postCode, postCode: row.postCode,
+        matrixKey: row.matrixKey, origin: row.origin, sortOrder: index, settled: null,
+        plannedMonth: row.plannedMonth, fencingCategories: row.fencingCategories, estimatedFederation: row.estimatedFederation,
+        initialGross: row.gross ?? 0, initialClubIncome: row.clubIncome ?? 0, initialFederation: row.federation ?? 0,
+        adjustmentFederation: 0, adjustmentReason: null, revisionReason: null, comment: null, seasonId: null, competitionId: null,
+      }));
+      const summary = computeFiscalYearSummary({
+        fiscalYear: { label: fiscalYear.label, restitutionAmount: parsed.restitutionAmount ?? 0 }, posts, actions, asOfDate: situationDate,
+      });
+      return saveSnapshot({ ...summary, actions }, { created: 0, updated: 0, unchanged: 0, missing: 0 });
+    }
     const existing = await tx.budgetAction.findMany({ where: { post: { fiscalYearId } }, include: { post: true } });
     const existingPosts = await tx.budgetPost.findMany({ where: { fiscalYearId } });
     const diff = buildMatrixDiff(parsed, existing.map(existingMatrixAction), overrides, existingPosts);
+    if (diff.actions.some(action => action.ambiguous)) throw new MatrixMatchError("Rapprochement ambigu : un rapprochement manuel est requis avant validation");
     if (parsed.restitutionAmount !== null && Number(fiscalYear.restitutionAmount) === 0) {
       fiscalYear = await tx.fiscalYear.update({ where: { id: fiscalYearId }, data: { restitutionAmount: parsed.restitutionAmount } });
     }
@@ -74,17 +101,12 @@ function applyInTransaction({ parsed, fiscalYearId, asOfDate, overrides, userId,
     });
     const actions = savedActions.map(action => ({ ...serializeBudgetAction(action), postCode: action.post.code }));
     const summary = computeFiscalYearSummary({
-      fiscalYear: { label: fiscalYear.label, restitutionAmount: Number(fiscalYear.restitutionAmount) }, posts: savedPosts, actions,
+      fiscalYear: { label: fiscalYear.label, restitutionAmount: Number(fiscalYear.restitutionAmount) }, posts: savedPosts, actions, asOfDate: situationDate,
     });
-    const snapshot = await tx.budgetSnapshot.create({ data: {
-      fiscalYearId, asOfDate: new Date(asOfDate + "T00:00:00.000Z"), sourceFileName: fileName,
-      fileUrl: fileUrl ?? null, importedById: userId,
-      data: JSON.parse(JSON.stringify({ ...summary, actions })) as Prisma.InputJsonValue,
-    } });
-    return {
-      snapshotId: snapshot.id, created: diff.actions.filter(action => action.kind === "new").length,
+    return saveSnapshot({ ...summary, actions }, {
+      created: diff.actions.filter(action => action.kind === "new").length,
       updated: diff.actions.filter(action => action.kind === "updated").length,
       unchanged: diff.actions.filter(action => action.kind === "unchanged").length, missing: diff.missingActions.length,
-    };
-  }, { maxWait: 20000, timeout: 120000 });
+    });
+  }, { maxWait: 20000, timeout: 100000 });
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { buildMonthlyReportText, computeActionFigures, computeFiscalYearSummary, listVigilancePoints } from "./budget-pilotage";
+import { buildMonthlyReportText, computeActionFigures, computeFiscalYearSummary, isActionSettled, listVigilancePoints } from "./budget-pilotage";
 import { serializeBudgetAction } from "./budget-pilotage-data";
 
 const snapshotFigures = z.object({ budget: z.number(), actual: z.number(), landing: z.number() });
@@ -20,12 +20,13 @@ export async function loadPilotage(label: string) {
       select: { id: true, asOfDate: true, sourceFileName: true, createdAt: true, importedBy: { select: { name: true } }, data: true } }),
     prisma.fiscalYear.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } }),
   ]);
+  const asOfDate = storedSnapshots[0]?.asOfDate ?? new Date();
+  const context = { asOfDate, fiscalYearLabel: year.label };
   const actions = rows.map(row => {
     const action = { ...serializeBudgetAction(row), postCode: row.post.code };
-    return { ...action, figures: computeActionFigures(action) };
+    return { ...action, figures: computeActionFigures(action, context), isSettled: isActionSettled(action, context) };
   });
-  const summary = computeFiscalYearSummary({ fiscalYear, posts, actions });
-  const asOfDate = storedSnapshots[0]?.asOfDate ?? new Date();
+  const summary = computeFiscalYearSummary({ fiscalYear, posts, actions, asOfDate });
   const vigilance = listVigilancePoints(summary, actions, { asOfDate, fiscalYearLabel: year.label });
   const snapshots = storedSnapshots.map(({ data: _data, ...snapshot }) => snapshot);
   // Old imports remain immutable; expose only the figures needed by history.

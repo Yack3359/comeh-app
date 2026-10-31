@@ -31,7 +31,7 @@ export function PilotageActions({ data, canManage, postCode, onPostChange, onCha
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr-FR");
   const filtered = data.actions.filter(action => (postCode === "all" || action.postCode === postCode) && (status === "all" || action.status === status) &&
     (category === "all" || action.fencingCategories.some(value => value === category)) && normalize(action.label + " " + (action.notes ?? "") + " " + (action.comment ?? "")).includes(normalize(search.trim())));
-  const columns = showGross ? 11 : 7;
+  const columns = showGross ? 12 : 8;
   const add = (postId = data.posts.find(post => post.code === postCode)?.id ?? data.posts[0]?.id) => { if (postId) setEditor({ postId }); };
   return <div className="space-y-4">
     <div data-print-hide className="flex flex-wrap items-end justify-between gap-3"><p className="text-sm text-slate-500">{filtered.length} action(s) · montants en part FFE</p>
@@ -43,7 +43,7 @@ export function PilotageActions({ data, canManage, postCode, onPostChange, onCha
       <FieldSelect id="filter-category" label="Catégorie d’âge" value={category} onChange={setCategory} options={[{ value: "all", label: "Toutes les catégories" }, ...Object.entries(categoryLabels).map(([value, label]) => ({ value, label }))]} />
       <div className="space-y-1.5"><Label htmlFor="action-search">Recherche</Label><Input id="action-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Libellé, notes ou commentaire" /></div>
     </div><label data-print-hide className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showGross} onChange={event => setShowGross(event.target.checked)} />Afficher brut et recettes</label>
-      <div className="max-w-full overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Action</TableHead><TableHead>Statut</TableHead><TableHead>Budget FFE</TableHead><TableHead>Réalisé</TableHead><TableHead>Écart</TableHead><TableHead>Atterrissage</TableHead><TableHead>Drapeau</TableHead>
+      <div className="max-w-full overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Action</TableHead><TableHead>Statut</TableHead><TableHead>Budget FFE</TableHead><TableHead>Réalisé</TableHead><TableHead>Reste à venir</TableHead><TableHead>Atterrissage (total)</TableHead><TableHead>Écart</TableHead><TableHead>Drapeau</TableHead>
         {showGross && <><TableHead>Brut budgété</TableHead><TableHead>Recettes budgétées</TableHead><TableHead>Brut réalisé</TableHead><TableHead>Recettes réalisées</TableHead></>}
       </TableRow></TableHeader><TableBody>
         {data.posts.filter(post => postCode === "all" || post.code === postCode).map(post => {
@@ -51,7 +51,7 @@ export function PilotageActions({ data, canManage, postCode, onPostChange, onCha
           const summary = data.summary.posts.find(item => item.code === post.code)!;
           if (!actions.length && (search || status !== "all" || category !== "all")) return null;
           return <Fragment key={post.id}><TableRow className="bg-primary-50 hover:bg-primary-50"><TableCell colSpan={columns}>
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-primary">{post.code} — {post.label}</p><p className="mt-1 text-xs text-slate-600">Total du poste : budget {formatCurrency(summary.budget)} · réalisé {formatCurrency(summary.actual)} · atterrissage {formatCurrency(summary.landing)}</p></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-primary">{post.code} — {post.label}</p><p className="mt-1 text-xs text-slate-600">Total du poste : budget {formatCurrency(summary.budget)} · réalisé {formatCurrency(summary.actual)} · reste à venir {formatCurrency(summary.remaining)} · atterrissage (total) {formatCurrency(summary.landing)}</p></div>
               {canManage && <Button data-print-hide size="sm" variant="outline" onClick={() => add(post.id)}>Ajouter une action</Button>}
             </div></TableCell></TableRow>
             {actions.map(action => {
@@ -62,10 +62,12 @@ export function PilotageActions({ data, canManage, postCode, onPostChange, onCha
                   {canManage ? <button className="text-left font-semibold text-primary underline-offset-4 hover:underline" onClick={event => { event.stopPropagation(); setEditor({ action, postId: post.id }); }}>{action.label}</button> : <span className="font-semibold">{action.label}</span>}
                   {action.proposedSaving && <span title="Économie proposée à valider"><Lightbulb className="h-4 w-4 text-amber-600" aria-label="Économie proposée" /></span>}
                 </div>{action.comment && <p className="mt-1 line-clamp-2 text-xs italic text-slate-500" title={action.comment}>{action.comment}</p>}<div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-slate-500"><span>{monthLabel(action.plannedMonth)}</span>{action.fencingCategories.map(value => <Badge key={value} variant="outline">{categoryLabels[value]}</Badge>)}</div></TableCell>
-                <TableCell><Badge variant="outline" className={statusStyles[action.status]}>{statusLabels[action.status]}</Badge></TableCell>
+                <TableCell><Badge variant="outline" className={statusStyles[action.status]}>{statusLabels[action.status]}</Badge>{action.status === "DONE" && !action.isSettled && <Badge variant="outline" className="mt-1 border-amber-200 bg-amber-50 text-amber-700">En attente de factures</Badge>}</TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.budget)}{figures.budget !== action.initialFederation && <p className="text-xs text-slate-400 line-through">{formatCurrency(action.initialFederation)}</p>}</TableCell>
-                <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.actual)}</TableCell><TableCell className={"whitespace-nowrap tabular-nums " + (figures.variance > 0 ? "font-semibold text-accent-700" : "")}>{formatCurrency(figures.variance)}</TableCell>
-                <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.landing)}</TableCell><TableCell><span role="img" aria-label={flagLabels[flag]} title={flagLabels[flag]} className={"inline-block h-3 w-3 rounded-full " + ({ green: "bg-emerald-500", orange: "bg-amber-500", red: "bg-accent" }[flag])} /></TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.actual)}</TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.remaining)}</TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.landing)}</TableCell><TableCell className={"whitespace-nowrap tabular-nums " + (figures.variance > 0 ? "font-semibold text-accent-700" : "")}>{formatCurrency(figures.variance)}</TableCell>
+                <TableCell><span role="img" aria-label={flagLabels[flag]} title={flagLabels[flag]} className={"inline-block h-3 w-3 rounded-full " + ({ green: "bg-emerald-500", orange: "bg-amber-500", red: "bg-accent" }[flag])} /></TableCell>
                 {showGross && [action.revisedGross, action.revisedClubIncome, action.actualGross, action.actualClubIncome].map((amount, index) => <TableCell key={index} className="whitespace-nowrap tabular-nums">{amount === null ? "—" : formatCurrency(amount)}</TableCell>)}
               </TableRow>;
             })}
