@@ -23,8 +23,8 @@ type BudgetModuleProps = {
 };
 
 const viewTitles = {
-  suivi: "Suivi budgétaire", notes: "Notes de frais", "export-ffe": "Export FFE",
-  import: "Importer des justificatifs", previsionnel: "Prévisionnel", categories: "Catégories",
+  suivi: "Suivi des frais par saison", notes: "Notes de frais", "export-ffe": "Export FFE",
+  import: "Importer des justificatifs", previsionnel: "Prévisionnel par saison", categories: "Catégories",
 };
 
 export function BudgetModule(props: BudgetModuleProps) {
@@ -84,7 +84,7 @@ function BudgetModuleContent({ canManage }: BudgetModuleProps) {
             <div>
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-100">
-                  Module Frais & budget
+                  Module Notes de frais
                 </p>
                 {!canManage ? (
                   <Badge className="border-white/30 bg-white/10 text-white" variant="outline">

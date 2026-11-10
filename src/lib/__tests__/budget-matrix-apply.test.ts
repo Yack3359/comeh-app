@@ -43,6 +43,12 @@ describe("matrix application", () => {
     db.budgetSnapshot.create.mockResolvedValue({ id: "snapshot" });
     db.budgetAction.findMany.mockResolvedValue([existing()]);
   });
+  it("rejects preparation inside the transaction before any snapshot or action write", async () => {
+    db.fiscalYear.findUniqueOrThrow.mockResolvedValue({ id: "fy", label: "2027", phase: "PREPARATION" });
+    await expect(applyBudgetMatrix(params())).rejects.toThrow("Votez d’abord");
+    expect(db.budgetSnapshot.create).not.toHaveBeenCalled();
+    expect(db.budgetAction.update).not.toHaveBeenCalled();
+  });
   it("preserves initial/manual fields and CANCELLED, and stores numeric post-import summary", async () => {
     const after = { ...existing(), revisedFederation: decimal(4500) };
     db.budgetAction.findMany.mockResolvedValueOnce([existing()]).mockResolvedValueOnce([after]);

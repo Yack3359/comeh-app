@@ -11,3 +11,10 @@ export const categoryLabels = { SENIOR: "Sénior", U23: "U23", M20: "M20", M17: 
 export function monthLabel(month: number | null) {
   return month === null ? "—" : new Date(Date.UTC(2026, month - 1, 1)).toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" });
 }
+
+export const teamLabels = { SENIORS: "Séniors", M20: "M20 / U23", M17: "M17", COMMUN: "Commun", COMMISSION: "Commission" };
+export const proposalLabels = { PROPOSED: "Proposée (à confirmer)", VALIDATED: "Retenue", ARBITRATION: "À arbitrer", REJECTED: "Écartée" };
+
+export function countLabel(count: number, singular: string, plural: string) {
+  return count + " " + (count > 1 ? plural : singular);
+}

@@ -24,6 +24,7 @@ function applyInTransaction({ parsed, fiscalYearId, asOfDate, overrides, userId,
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM fiscal_years WHERE id = ${fiscalYearId} FOR UPDATE`;
     let fiscalYear = await tx.fiscalYear.findUniqueOrThrow({ where: { id: fiscalYearId } });
+    if (fiscalYear.phase === "PREPARATION") throw new MatrixChronologyError("Votez d’abord le budget de l’exercice");
     const situationDate = new Date(asOfDate + "T00:00:00.000Z");
     const latest = await tx.budgetSnapshot.findFirst({ where: { fiscalYearId }, orderBy: { asOfDate: "desc" }, select: { asOfDate: true } });
     if (!historicalOnly && latest && situationDate < latest.asOfDate) {

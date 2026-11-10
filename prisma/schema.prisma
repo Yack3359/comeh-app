@@ -11,6 +11,7 @@ enum Role {
   ADMIN        @map("admin")
   COMEH_MEMBER @map("comeh_member")
   READONLY     @map("readonly")
+  CONTRIBUTOR  @map("contributor")
 }
 
 enum ExpenseSource {
@@ -71,6 +72,7 @@ enum ImportStatus {
 }
 
 model User {
+  proposedBudgetActions BudgetAction[]
   budgetSnapshots BudgetSnapshot[]
   id             String          @id @default(cuid())
   email          String          @unique
@@ -141,7 +143,22 @@ model Season {
   @@map("seasons")
 }
 
+enum FiscalYearPhase {
+  PREPARATION @map("preparation")
+  EXECUTION   @map("execution")
+}
+
+enum BudgetProposalStatus {
+  PROPOSED    @map("proposee")
+  VALIDATED   @map("retenue")
+  ARBITRATION @map("a_arbitrer")
+  REJECTED    @map("ecartee")
+}
+
 model FiscalYear {
+  phase FiscalYearPhase @default(EXECUTION)
+  preparationDeadline DateTime? @map("preparation_deadline") @db.Date
+  targetFederation Decimal? @map("target_federation") @db.Decimal(12, 2)
   restitutionAmount Decimal @default(0) @map("restitution_amount") @db.Decimal(12, 2)
   budgetPosts BudgetPost[]
   budgetSnapshots BudgetSnapshot[]
@@ -388,6 +405,16 @@ model BudgetPost {
 }
 
 model BudgetAction {
+  proposalStatus BudgetProposalStatus? @map("proposal_status")
+  proposedById String? @map("proposed_by_id")
+  proposedBy User? @relation(fields: [proposedById], references: [id], onDelete: SetNull)
+  athleteCount Int? @map("athlete_count")
+  staffCount Int? @map("staff_count")
+  dayCount Int? @map("day_count")
+  amountsConfirmed Boolean @default(false) @map("amounts_confirmed")
+  sourceActionId String? @map("source_action_id")
+  sourceAction BudgetAction? @relation("BudgetActionRenewal", fields: [sourceActionId], references: [id], onDelete: SetNull)
+  derivedActions BudgetAction[] @relation("BudgetActionRenewal")
   id                  String              @id @default(cuid())
   postId              String              @map("post_id")
   label               String

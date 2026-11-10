@@ -13,7 +13,7 @@ export type PilotagePost = { id: string; code: string; label: string; kind: Budg
 export type ActionFigures = { budget: number; actual: number; landing: number; variance: number; remaining: number };
 export type Flag = "green" | "orange" | "red";
 const statuses: BudgetActionStatus[] = ["OPTION", "BUDGETED", "COMMITTED", "DONE", "CANCELLED", "UNBUDGETED"];
-const inBudget = (action: Pick<PilotageAction, "includedInBudget" | "status">) =>
+export const inBudget = (action: Pick<PilotageAction, "includedInBudget" | "status">) =>
   action.includedInBudget && action.status !== "OPTION" && action.status !== "UNBUDGETED";
 export type SituationContext = { asOfDate: Date | null; fiscalYearLabel: string };
 export function isActionSettled(action: Pick<PilotageAction, "settled" | "status" | "label" | "plannedMonth">,
@@ -119,4 +119,14 @@ export function buildMonthlyReportText(summary: FiscalYearSummary, vigilance: Vi
     " | Atterrissage (total) : " + money(summary.totals.landing), "Marge globale : " + money(summary.globalMargin));
   if (summary.restitution > 0) lines.push("Restitution fédé : " + money(summary.restitution));
   return lines.join("\n");
+}
+
+export function buildPilotageHeadline(summary: FiscalYearSummary, asOfDate: Date): string {
+  const { totals } = summary;
+  const date = asOfDate.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const percent = totals.budget ? Math.round(totals.actual / totals.budget * 100) + " %" : "budget nul";
+  const gap = (margin: number) => money(Math.abs(margin)) + (margin >= 0 ? " en dessous du budget" : " au-dessus du budget");
+  return "Au " + date + " : " + money(totals.actual) + (totals.actual > 1 ? " dépensés sur " : " dépensé sur ") + money(totals.budget) + " de budget FFE (" + percent + "). " +
+    "Il reste " + money(totals.remaining) + " d’actions à venir : le budget devrait finir à " + money(totals.landing) + ", soit " +
+    gap(totals.margin) + (summary.restitution ? " (" + gap(summary.globalMargin) + " après restitution)" : "") + ".";
 }

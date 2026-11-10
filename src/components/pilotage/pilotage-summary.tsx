@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/components/budget/utils";
 import { ErrorMessage, FlagBadge, flagStyles } from "./shared";
+import { PilotageHeadline } from "./pilotage-headline";
 import type { PilotageData } from "./types";
 
 export function PilotageSummary({ data, onPost }: { data: PilotageData; onPost: (code: string) => void }) {
@@ -28,6 +29,7 @@ export function PilotageSummary({ data, onPost }: { data: PilotageData; onPost: 
     catch { setError("Impossible de copier automatiquement. Sélectionnez le texte ci-dessous pour le copier."); }
   }
   return <div className="space-y-6">
+    <PilotageHeadline data={data} />
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{indicators.map((item, index) => <Card key={item.label} className={"shadow-institutional " + flagStyles[index === 4 && item.value < 0 ? "red" : summary.flag]}>
       <CardContent className="p-4"><p className="text-sm font-semibold">{item.label}</p><p className="mt-2 text-2xl font-bold tabular-nums">{formatCurrency(item.value)}</p>{item.detail && <p className="mt-1 text-xs">{item.detail}</p>}</CardContent>
     </Card>)}</div>

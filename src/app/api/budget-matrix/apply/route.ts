@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       if (!fields.success) return invalidDataResponse(fields.error);
       const fiscalYear = await prisma.fiscalYear.findUnique({ where: { label: fields.data.fiscalYearLabel } });
       if (!fiscalYear) return NextResponse.json({ error: "Exercice " + fields.data.fiscalYearLabel + " introuvable" }, { status: 400 });
+      if (fiscalYear.phase === "PREPARATION") return NextResponse.json({ error: "Votez d’abord le budget de l’exercice" }, { status: 409 });
       // Reject invalid overrides before uploading; validate again inside the transaction.
       if (!fields.data.historicalOnly) {
         const existing = await prisma.budgetAction.findMany({ where: { post: { fiscalYearId: fiscalYear.id } }, include: { post: true } });

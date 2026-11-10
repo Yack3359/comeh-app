@@ -49,19 +49,25 @@ function AppNavContent({ canImport, isAdmin }: AppNavProps) {
   }, [currentModule]);
 
   const links: NavEntry[] = [
-    { href: "/", label: "Tableau de bord", icon: Gauge },
-    { href: "/pilotage", label: "Pilotage budgétaire", icon: Target, children: [
-      { href: "/pilotage?vue=synthese", label: "Synthèse", view: "synthese" },
-      { href: "/pilotage?vue=actions", label: "Actions", view: "actions" },
-      ...(canImport ? [{ href: "/pilotage?vue=import", label: "Importer la matrice", view: "import" }] : []),
-      { href: "/pilotage?vue=historique", label: "Historique", view: "historique" },
+    { href: "/", label: "Accueil", icon: Gauge },
+    { href: "/pilotage", label: "Suivi du budget", icon: Target, children: [
+      { href: "/pilotage?vue=synthese", label: "Où en est-on ?", view: "synthese" },
+      { href: "/pilotage?vue=actions", label: "Détail des actions", view: "actions" },
+      { href: "/pilotage?vue=construction", label: "Construction du budget", view: "construction" },
+      ...(canImport ? [{ href: "/pilotage?vue=import", label: "Importer la matrice FFE", view: "import" }] : []),
+      { href: "/pilotage?vue=historique", label: "Historique des imports", view: "historique" },
     ] },
-    { href: "/budget", label: "Frais & budget", icon: WalletCards, children: [
-      { href: "/budget?vue=suivi", label: "Suivi budgétaire", view: "suivi" },
+    { href: "/preparation", label: "Préparer le budget", icon: Target, children: [
+      { href: "/preparation?vue=avancement", label: "Avancement", view: "avancement" },
+      { href: "/preparation?vue=lignes", label: "Compétitions et stages", view: "lignes" },
+      { href: "/preparation?vue=construction", label: "Construction du budget", view: "construction" },
+    ] },
+    { href: "/budget", label: "Notes de frais", icon: WalletCards, children: [
+      { href: "/budget?vue=suivi", label: "Suivi des frais par saison", view: "suivi" },
       { href: "/budget?vue=notes", label: "Notes de frais", view: "notes" },
       { href: "/budget?vue=export-ffe", label: "Export FFE", view: "export-ffe" },
       ...(canImport ? [{ href: "/budget?vue=import", label: "Importer des justificatifs", view: "import" }] : []),
-      { href: "/budget?vue=previsionnel", label: "Prévisionnel", view: "previsionnel" },
+      { href: "/budget?vue=previsionnel", label: "Prévisionnel par saison", view: "previsionnel" },
       { href: "/budget?vue=categories", label: "Catégories", view: "categories" },
     ] },
     ...(canImport ? [{ href: "/imports", label: "Import", icon: FileUp }] : []),

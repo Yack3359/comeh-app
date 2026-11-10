@@ -6,9 +6,10 @@ const db = vi.hoisted(() => ({
   budgetAction: { findMany: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn(), update: vi.fn() },
   season: { findUnique: vi.fn() }, $transaction: vi.fn(),
 }));
+const authenticate = vi.hoisted(() => vi.fn());
 const apply = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
-vi.mock("@/lib/api-auth", () => ({ runAsAuthenticatedUser: (operation: (id: string) => Promise<unknown>) => operation("user") }));
+vi.mock("@/lib/api-auth", () => ({ runAsAuthenticatedUser: authenticate }));
 vi.mock("@/lib/import-storage", () => ({ uploadBudgetMatrixFile: vi.fn().mockResolvedValue("matrix.xlsx") }));
 vi.mock("@/lib/budget-matrix-apply", async importOriginal => ({
   ...await importOriginal<typeof import("../budget-matrix-apply")>(), applyBudgetMatrix: apply,
@@ -32,6 +33,7 @@ const jsonRequest = (method: string, body: object) => new Request("http://localh
 });
 beforeEach(() => {
   vi.clearAllMocks();
+  authenticate.mockImplementation((operation: (id: string) => Promise<unknown>) => operation("user"));
   db.fiscalYear.findUnique.mockResolvedValue({ id: "fy", label: "2026" });
   db.budgetPost.findMany.mockResolvedValue([post]);
   db.budgetAction.findMany.mockResolvedValue([action()]);
@@ -44,6 +46,14 @@ beforeEach(() => {
   apply.mockResolvedValue({ snapshotId: "snapshot", created: 0, updated: 0, unchanged: 1, missing: 0 });
 });
 describe("matrix API safeguards", () => {
+  it("refuses a matrix during preparation before uploading", async () => {
+    db.fiscalYear.findUnique.mockResolvedValue({ id: "fy", label: "2026", phase: "PREPARATION" });
+    const response = await applyRoute(await upload({ payload: JSON.stringify({ fiscalYearLabel: "2026", asOfDate: "2026-10-25" }) }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain("Votez d’abord");
+    expect(apply).not.toHaveBeenCalled();
+    expect(authenticate.mock.lastCall?.[1]).toEqual(["ADMIN", "COMEH_MEMBER"]);
+  });
   it("recalculates the preview with multipart JSON overrides", async () => {
     const first = await preview(await upload());
     const before = await first.json();
@@ -88,11 +98,13 @@ describe("manual action API inclusion", () => {
     const included = status !== "OPTION" && status !== "UNBUDGETED";
     const created = await createAction(jsonRequest("POST", { label: "Action", postId: post.id, status, settled: false }));
     expect(created.status).toBe(201);
+    expect(authenticate.mock.lastCall?.[1]).toEqual(["ADMIN", "COMEH_MEMBER"]);
     expect(db.budgetAction.create.mock.lastCall?.[0].data).toMatchObject({ status, includedInBudget: included, settled: false });
     for (const current of [true, false]) {
       db.budgetAction.findUniqueOrThrow.mockResolvedValue({ ...action(), includedInBudget: current });
       const updated = await patchAction(jsonRequest("PATCH", { status, includedInBudget: !current, settled: null }), { params: { id: "old" } });
       expect(updated.status).toBe(200);
+      expect(authenticate.mock.lastCall?.[1]).toEqual(["ADMIN", "COMEH_MEMBER"]);
       expect(db.budgetAction.update.mock.lastCall?.[0].data).toMatchObject({ status, includedInBudget: status === "CANCELLED" ? current : included, settled: null });
     }
   });

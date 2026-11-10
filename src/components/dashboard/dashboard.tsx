@@ -20,6 +20,8 @@ import {
   requestJson,
 } from "@/components/budget/utils";
 import { FlagBadge } from "@/components/pilotage/shared";
+import { PilotageHeadline } from "@/components/pilotage/pilotage-headline";
+import type { PreparationData } from "@/components/preparation/types";
 import type { PilotageData } from "@/components/pilotage/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,6 +63,10 @@ export function Dashboard({ canImport }: DashboardProps) {
   const [seasonId, setSeasonId] = useState("");
   const [tracking, setTracking] = useState<TrackingData | null>(null);
   const [pilotage, setPilotage] = useState<PilotageData | null>(null);
+  const [preparation, setPreparation] = useState<PreparationData | null>(null);
+  const [preparationLoading, setPreparationLoading] = useState(true);
+  const [preparationError, setPreparationError] = useState<string | null>(null);
+  const nextYear = String(new Date().getFullYear() + 1);
   const [pilotageLoading, setPilotageLoading] = useState(true);
   const [pilotageError, setPilotageError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +88,20 @@ export function Dashboard({ canImport }: DashboardProps) {
       .finally(() => { if (!controller.signal.aborted) setPilotageLoading(false); });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/budget-preparation?fiscalYear=" + nextYear, { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        if (response.status === 404) return null;
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error || "Impossible de charger la préparation du budget");
+        return body as PreparationData;
+      }).then(data => { if (!controller.signal.aborted) setPreparation(data); })
+      .catch((failure: unknown) => { if (!controller.signal.aborted) setPreparationError(failure instanceof Error ? failure.message : "Impossible de charger la préparation"); })
+      .finally(() => { if (!controller.signal.aborted) setPreparationLoading(false); });
+    return () => controller.abort();
+  }, [nextYear]);
 
   useEffect(() => {
     let active = true;
@@ -169,7 +189,7 @@ export function Dashboard({ canImport }: DashboardProps) {
                 FF Escrime · COMmission Épée Homme
               </p>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                Tableau de bord COMEH
+                Accueil COMEH
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
                 Le pilotage budgétaire de la commission et les dépenses de la
@@ -195,38 +215,27 @@ export function Dashboard({ canImport }: DashboardProps) {
 
       {error && <p role="alert" className="rounded-xl border border-accent/20 bg-accent-50 p-5 text-sm text-accent-700">{error}</p>}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Pilotage budgétaire {pilotage?.fiscalYear.label ?? new Date().getFullYear()}</CardTitle>
-          {pilotage?.posts.length ? <CardDescription>Situation au {formatDate(pilotage.asOfDate)}</CardDescription> : null}
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {pilotageLoading ? <p className="text-sm text-slate-500">Chargement du pilotage budgétaire…</p>
-            : pilotageError ? <p role="alert" className="text-sm text-accent-700">{pilotageError}</p>
-            : pilotage?.posts.length ? <>
-              <FlagBadge flag={pilotage.summary.flag} />
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { label: "Budget FFE", value: pilotage.summary.totals.budget },
-                  { label: "Réalisé", value: pilotage.summary.totals.actual },
-                  { label: "Reste à venir", value: pilotage.summary.totals.remaining },
-                  { label: "Atterrissage (total)", value: pilotage.summary.totals.landing },
-                  { label: "Marge globale (après restitution)", value: pilotage.summary.globalMargin },
-                ].map(({ label, value }) => <div className="rounded-lg border bg-slate-50 p-4" key={label}>
-                  <p className="text-xl font-bold tabular-nums text-slate-900">{formatCurrency(value)}</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">{label}</p>
-                </div>)}
-              </div>
-              <ul className="space-y-2 text-sm">
-                {pilotage.vigilance.filter(point => point.level === "red" || point.level === "orange").slice(0, 3).map((point, index) =>
-                  <li key={index} className={point.level === "red" ? "text-accent-700" : "text-amber-700"}>{point.message}</li>)}
-              </ul>
-            </> : <p className="text-sm text-slate-500">Aucune matrice importée</p>}
-          <Button asChild size="sm" variant="outline">
-            <Link href="/pilotage">Ouvrir le pilotage<ArrowRight className="ml-2 h-4 w-4" /></Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card><CardHeader><CardTitle className="text-xl">Budget {pilotage?.fiscalYear.label ?? new Date().getFullYear()} — où en est-on ?</CardTitle></CardHeader>
+          <CardContent className="space-y-4">{pilotageLoading ? <p className="text-sm text-slate-500">Chargement du suivi…</p> : pilotageError ? <p role="alert" className="text-sm text-accent-700">{pilotageError}</p> :
+            pilotage?.fiscalYear.phase === "PREPARATION" ? <p>Le budget est en préparation. <Link className="underline" href={"/preparation?fiscalYear=" + pilotage.fiscalYear.label}>Ouvrir la préparation</Link></p> :
+            pilotage?.posts.length ? <><PilotageHeadline data={pilotage} /><FlagBadge flag={pilotage.summary.flag} />
+              <ul className="space-y-2 text-sm">{[...pilotage.vigilance].sort((a, b) => ({ red: 0, orange: 1, info: 2 }[a.level] - { red: 0, orange: 1, info: 2 }[b.level])).slice(0, 3).map((point, index) =>
+                <li key={index} className={point.level === "red" ? "text-accent-700" : point.level === "orange" ? "text-amber-700" : "text-slate-600"}>{point.message}</li>)}</ul>
+            </> : <p className="text-sm text-slate-500">Aucune matrice importée.</p>}
+            <Button asChild size="sm" variant="outline"><Link href="/pilotage">Ouvrir le suivi du budget<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+          </CardContent>
+        </Card>
+        <Card><CardHeader><CardTitle className="text-xl">Budget {nextYear} — préparation</CardTitle></CardHeader><CardContent className="space-y-4">
+          {preparationLoading ? <p className="text-sm text-slate-500">Chargement de la préparation…</p> : preparationError ? <p role="alert" className="text-sm text-accent-700">{preparationError}</p> : preparation?.posts.length ? <>
+            <p className="text-sm leading-7 text-primary">{preparation.progress.headline}</p><progress className="h-3 w-full accent-primary" value={preparation.progress.percent} max={100} aria-label="Avancement de la préparation" />
+            <p className="text-sm font-semibold">{preparation.progress.percent} %</p><div className="grid grid-cols-3 gap-3">{[
+              ["À confirmer", preparation.progress.pending], ["À chiffrer", preparation.progress.unpriced], ["À arbitrer", preparation.progress.arbitration],
+            ].map(([label, value]) => <div key={label} className="rounded-lg bg-slate-50 p-3"><p className="text-2xl font-bold text-primary">{value}</p><p className="text-xs text-slate-600">{label}</p></div>)}</div>
+          </> : <p className="text-sm leading-7 text-slate-600">La préparation n’est pas encore ouverte. Reprenez les actions de l’année précédente ou commencez avec une trame vide.</p>}
+          <Button asChild><Link href={"/preparation?fiscalYear=" + nextYear}>Préparer le budget {nextYear}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+        </CardContent></Card>
+      </div>
 
       {!seasonId && !isLoading ? (
         <Card>
@@ -250,7 +259,7 @@ export function Dashboard({ canImport }: DashboardProps) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-primary">
-                  Budget de la saison
+                  Suivi des frais par saison
                 </h2>
                 <p className="text-sm text-slate-500">
                   Situation calculée à partir des frais enregistrés.
@@ -374,7 +383,7 @@ export function Dashboard({ canImport }: DashboardProps) {
             <Link href="/budget">
               <span className="flex items-center gap-2">
                 <WalletCards className="h-4 w-4" />
-                Frais & budget
+                Notes de frais
               </span>
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -383,11 +392,12 @@ export function Dashboard({ canImport }: DashboardProps) {
             <Link href="/pilotage">
               <span className="flex items-center gap-2">
                 <Target className="h-4 w-4" />
-                Pilotage budgétaire
+                Suivi du budget
               </span>
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
+          <Button asChild className="justify-between" variant="outline"><Link href="/preparation"><span className="flex items-center gap-2"><Target className="h-4 w-4" />Préparer le budget</span><ArrowRight className="h-4 w-4" /></Link></Button>
           {canImport ? (
             <Button asChild className="justify-between" variant="outline">
               <Link href="/imports">

@@ -4,10 +4,12 @@ export const roleLabels: Record<Role, string> = {
   [Role.ADMIN]: "Administrateur",
   [Role.COMEH_MEMBER]: "Membre COMEH",
   [Role.READONLY]: "Lecture seule",
+  [Role.CONTRIBUTOR]: "Entraîneur (préparation du budget)",
 };
 
 const roleWeight: Record<Role, number> = {
   [Role.READONLY]: 1,
+  [Role.CONTRIBUTOR]: 1,
   [Role.COMEH_MEMBER]: 2,
   [Role.ADMIN]: 3,
 };
