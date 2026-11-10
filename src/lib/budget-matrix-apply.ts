@@ -6,12 +6,9 @@ import { buildMatrixDiff, matrixActionValues, MatrixMatchError, type MatrixOverr
 import { computeFiscalYearSummary } from "./budget-pilotage";
 import { existingMatrixAction, serializeBudgetAction } from "./budget-pilotage-data";
 
-export function inferredSeasonLabel(fiscalYearLabel: string, month: number | null): string | null {
-  if (month === null) return null;
-  const year = Number(fiscalYearLabel);
-  const start = month >= 9 ? year : year - 1;
-  return String(start % 100).padStart(2, "0") + "/" + String((start + 1) % 100).padStart(2, "0");
-}
+import { inferredSeasonLabel } from "./budget-season";
+export { inferredSeasonLabel } from "./budget-season";
+
 export class MatrixChronologyError extends Error {}
 type ApplyMatrixInput = {
   parsed: ParsedMatrix; fiscalYearId: string; asOfDate: string; overrides?: MatrixOverrides;

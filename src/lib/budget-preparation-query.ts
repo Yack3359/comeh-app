@@ -51,6 +51,6 @@ export async function loadPreparation(label: string) {
   return { fiscalYear, previousYear: previous.year, fiscalYears, posts, lines,
     canOpen: posts.length === 0 && Object.keys(previous.totalsByPostCode).length > 0,
     progress: computePreparationProgress(lines, { deadline: year.preparationDeadline, phase: year.phase, today: new Date() }),
-    construction: { retained: buildConstruction(posts, lines, previous.totalsByPostCode, { includePending: false, phase: year.phase }),
-      high: buildConstruction(posts, lines, previous.totalsByPostCode, { includePending: true, phase: year.phase }) } };
+    construction: { retained: buildConstruction(posts, lines, previous.totalsByPostCode, { includePending: false, phase: year.phase, fiscalYearLabel: year.label }),
+      high: buildConstruction(posts, lines, previous.totalsByPostCode, { includePending: true, phase: year.phase, fiscalYearLabel: year.label }) } };
 }

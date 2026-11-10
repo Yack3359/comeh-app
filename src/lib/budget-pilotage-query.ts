@@ -41,6 +41,6 @@ export async function loadPilotage(label: string) {
   });
   return { fiscalYear, fiscalYears, posts, actions, summary, asOfDate, vigilance, snapshots, snapshotSummaries,
     headline: buildPilotageHeadline(summary, asOfDate),
-    construction: buildConstruction(posts, actions.map(action => ({ ...action, postKind: posts.find(post => post.id === action.postId)!.kind })), previous.totalsByPostCode, { includePending: false, phase: year.phase }),
+    construction: buildConstruction(posts, actions.map(action => ({ ...action, postKind: posts.find(post => post.id === action.postId)!.kind })), previous.totalsByPostCode, { includePending: false, phase: year.phase, fiscalYearLabel: year.label }),
     reportText: buildMonthlyReportText(summary, vigilance, asOfDate) };
 }

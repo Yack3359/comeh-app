@@ -1,3 +1,4 @@
+import { seasonLabelsOf, seasonPartOf, type SeasonPart } from "./budget-season";
 import { inBudget } from "./budget-pilotage";
 import type { FencingCategoryValue } from "./budget-matrix";
 import { roundAmount } from "./budget-matrix";
@@ -14,7 +15,7 @@ export type PreparationLine = Amounts & {
   id: string; postId: string; label: string; fencingCategories: string[]; proposalStatus: ProposalStatus | null;
   amountsConfirmed: boolean; postKind: PostKind; status: "OPTION" | "BUDGETED" | "COMMITTED" | "DONE" | "CANCELLED" | "UNBUDGETED";
   includedInBudget: boolean; actualGross: number | null; actualClubIncome: number | null; actualFederation: number | null;
-  source?: PreviousSource | null; previousYearAmount?: number | null;
+  plannedMonth: number | null; source?: PreviousSource | null; previousYearAmount?: number | null;
 };
 export const teams: Team[] = ["SENIORS", "M20", "M17", "COMMUN", "COMMISSION"];
 export const postKinds: PostKind[] = ["COMPETITION", "TRAINING_CAMP", "OPERATING", "OTHER"];
@@ -56,6 +57,7 @@ function counts(lines: PreparationLine[]) {
     pending: lines.filter(line => line.proposalStatus === "PROPOSED" || line.proposalStatus === null).length,
     arbitration: lines.filter(line => line.proposalStatus === "ARBITRATION").length,
     rejected: lines.filter(line => line.proposalStatus === "REJECTED").length,
+    undated: lines.filter(line => line.proposalStatus !== "REJECTED" && line.postKind !== "OPERATING" && line.plannedMonth === null).length,
     unpriced: lines.filter(line => line.proposalStatus !== "REJECTED" && !line.amountsConfirmed).length };
 }
 export function computePreparationProgress(lines: PreparationLine[], { deadline, phase, today }: { deadline: Date | null; phase: Phase; today: Date }) {
@@ -84,7 +86,8 @@ export function computePreparationProgress(lines: PreparationLine[], { deadline,
   const current = steps.findIndex(step => !step.done);
   const todo = byTeam.flatMap(item => {
     const parts = [item.pending ? countLabel(item.pending, "ligne à confirmer", "lignes à confirmer") : "", item.unpriced ? countLabel(item.unpriced, "montant à chiffrer", "montants à chiffrer") : "",
-      item.arbitration ? countLabel(item.arbitration, "ligne à arbitrer", "lignes à arbitrer") : ""].filter(Boolean);
+      item.arbitration ? countLabel(item.arbitration, "ligne à arbitrer", "lignes à arbitrer") : "",
+      item.undated ? countLabel(item.undated, "mois à renseigner", "mois à renseigner") : ""].filter(Boolean);
     return parts.length ? [teamLabels[item.team] + " : " + parts.join(", ")] : [];
   });
   const days = deadline ? Math.ceil((Date.UTC(deadline.getUTCFullYear(), deadline.getUTCMonth(), deadline.getUTCDate()) -
@@ -95,15 +98,25 @@ export function computePreparationProgress(lines: PreparationLine[], { deadline,
     "La préparation est avancée à " + percent + " % : " + countLabel(totals.pending, "ligne à confirmer", "lignes à confirmer") + ", " + countLabel(totals.unpriced, "montant à chiffrer", "montants à chiffrer") + " et " + countLabel(totals.arbitration, "arbitrage à rendre", "arbitrages à rendre") + ".") + due;
   return { ...totals, byTeam, amounts, steps: steps.map((step, index) => ({ ...step, current: !voted && index === current })), percent, todo, headline };
 }
+export function isInConstruction(line: PreparationLine, phase: Phase, includePending: boolean) {
+  return phase === "EXECUTION" ? inBudget(line) : line.proposalStatus === "VALIDATED" || (includePending && line.proposalStatus !== "REJECTED");
+}
 export type PreviousTotals = Record<string, { budget: number; actual: number }>;
 export function buildConstruction(posts: PreparationPost[], lines: PreparationLine[], previousTotalsByPostCode: PreviousTotals,
-  { includePending, phase = "PREPARATION" }: { includePending: boolean; phase?: Phase }) {
-  const selected = lines.filter(line => phase === "EXECUTION" ? inBudget(line) : line.proposalStatus === "VALIDATED" ||
-    (includePending && line.proposalStatus !== "REJECTED"));
+  { includePending, phase = "PREPARATION", fiscalYearLabel }: { includePending: boolean; phase?: Phase; fiscalYearLabel: string }) {
+  const selected = lines.filter(line => isInConstruction(line, phase, includePending));
+  const seasonParts = (items: PreparationLine[]) => {
+    const part = (value: SeasonPart) => {
+      const selected = items.filter(line => seasonPartOf(line.plannedMonth) === value);
+      const sum = (key: keyof Amounts) => roundAmount(selected.reduce((total, line) => total + line[key], 0));
+      return { gross: sum("revisedGross"), clubIncome: sum("revisedClubIncome"), federation: sum("revisedFederation"), count: selected.length };
+    };
+    return { END: part("END"), START: part("START"), NONE: part("NONE") };
+  };
   const figures = (items: PreparationLine[], previous: { budget: number; actual: number }, actualItems = items) => {
     const sum = (key: keyof Amounts) => roundAmount(items.reduce((total, line) => total + line[key], 0));
     const gross = sum("revisedGross"), federation = sum("revisedFederation"), clubIncome = sum("revisedClubIncome");
-    return { gross, clubIncome, federation, federationPercent: gross ? federation / gross * 100 : 0,
+    return { gross, clubIncome, federation, seasonParts: seasonParts(items), federationPercent: gross ? federation / gross * 100 : 0,
       previousBudget: previous.budget, previousActual: previous.actual, variance: roundAmount(federation - previous.budget),
       actual: { gross: roundAmount(actualItems.reduce((total, line) => total + (line.actualGross ?? 0), 0)),
         clubIncome: roundAmount(actualItems.reduce((total, line) => total + (line.actualClubIncome ?? 0), 0)),
@@ -116,7 +129,7 @@ export function buildConstruction(posts: PreparationPost[], lines: PreparationLi
         ...figures([line], { budget: line.source?.revisedFederation ?? line.previousYearAmount ?? 0, actual: line.source?.actualFederation ?? 0 }) })) };
   });
   const previous = Object.values(previousTotalsByPostCode).reduce((total, item) => ({ budget: roundAmount(total.budget + item.budget), actual: roundAmount(total.actual + item.actual) }), { budget: 0, actual: 0 });
-  return { phase, posts: result, totals: figures(selected, previous, lines) };
+  return { phase, fiscalYearLabel, seasonLabels: seasonLabelsOf(fiscalYearLabel), posts: result, totals: figures(selected, previous, lines) };
 }
 export function voteOutcome(proposalStatus: ProposalStatus | null, amounts: Amounts) {
   const retained = proposalStatus === "VALIDATED";

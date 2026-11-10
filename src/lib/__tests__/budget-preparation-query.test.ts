@@ -84,7 +84,13 @@ describe("lecture et export de la préparation", () => {
     expect(sheet.getRow(2).getCell(17).value).toBe("Entraîneur");
     expect(sheet.getRow(3).getCell(11).value).toMatchObject({ formula: "SUM(K2:K2)", result: 19500 });
     expect(sheet.getRow(4).getCell(11).value).toMatchObject({ formula: "SUM(K3)", result: 19500 });
-    expect(restored.getWorksheet("Construction")!.getRow(2).getCell(7).value).toBe(19500);
+    expect(sheet.getRow(1).getCell(18).value).toBe("Saison");
+    expect(sheet.getRow(2).getCell(18).value).toBe("26/27");
+    const construction = restored.getWorksheet("Construction")!;
+    expect(construction.getRow(2).getCell(7).value).toBe(19500);
+    expect(construction.getRow(1).cellCount).toBe(12);
+    expect(construction.getRow(1).getCell(10).value).toBe("Part FFE — Fin de saison 26/27 (janv.–août 2027)");
+    expect([10, 11, 12].map(column => construction.getRow(2).getCell(column).value)).toEqual([19500, 0, 0]);
   });
   it("expose aussi la phase, la phrase et les références dans le pilotage", async () => {
     const data = (await loadPilotage("2027"))!;

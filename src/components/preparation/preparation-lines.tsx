@@ -8,18 +8,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCurrency } from "@/components/budget/utils";
 import { ErrorMessage, pilotageRequest } from "@/components/pilotage/shared";
 import { countLabel, monthLabel, proposalLabels, teamLabels } from "@/lib/budget-pilotage-labels";
+import { inferredSeasonLabel, seasonPartOf, seasonPartTitle } from "@/lib/budget-season";
 import { PreparationLineForm } from "./preparation-line-form";
 import type { PreparationData, PreparationLine } from "./types";
 
 const decisionStyles = { PROPOSED: "bg-slate-100 text-slate-600", VALIDATED: "bg-emerald-50 text-emerald-700", ARBITRATION: "bg-amber-50 text-amber-700", REJECTED: "bg-accent-50 text-accent-700" };
-export function PreparationLines({ data, canPrepare, team, onTeam, onChanged }: {
-  data: PreparationData; canPrepare: boolean; team: string; onTeam: (team: string) => void; onChanged: () => void;
+const periodParts = { fin: "END", debut: "START", sans: "NONE" } as const;
+export function PreparationLines({ data, canPrepare, team, onTeam, period, onPeriod, onChanged }: {
+  data: PreparationData; canPrepare: boolean; team: string; onTeam: (team: string) => void; period: string; onPeriod: (period: string) => void; onChanged: () => void;
 }) {
   const [editor, setEditor] = useState<{ line?: PreparationLine } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const editable = canPrepare && data.fiscalYear.phase === "PREPARATION";
-  const lines = data.lines.filter(line => team === "all" || line.team === team);
+  const part = period in periodParts ? periodParts[period as keyof typeof periodParts] : null;
+  const lines = data.lines.filter(line => (team === "all" || line.team === team) && (!part || seasonPartOf(line.plannedMonth) === part));
+  const seasonNote = (line: PreparationLine, kind: string) => line.plannedMonth !== null ? " · saison " + inferredSeasonLabel(data.fiscalYear.label, line.plannedMonth) :
+    kind === "OPERATING" ? "" : " · mois à renseigner";
   async function patch(line: PreparationLine, update: object) {
     setBusy(true); setError(null);
     try { await pilotageRequest("/api/budget-preparation/lines/" + encodeURIComponent(line.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(update) }); onChanged(); }
@@ -30,6 +35,9 @@ export function PreparationLines({ data, canPrepare, team, onTeam, onChanged }: 
   return <div className="space-y-4">
     <div className="flex flex-wrap gap-2" aria-label="Filtrer par équipe">{[{ value: "all", label: "Toutes les équipes" }, ...Object.entries(teamLabels).map(([value, label]) => ({ value, label }))].map(item =>
       <Button key={item.value} size="sm" variant={team === item.value ? "default" : "outline"} aria-pressed={team === item.value} onClick={() => onTeam(item.value)}>{item.label}</Button>)}</div>
+    <div className="flex flex-wrap gap-2" aria-label="Filtrer par période">{[{ value: "all", label: "Toute l’année " + data.fiscalYear.label }, { value: "fin", label: seasonPartTitle("END", data.fiscalYear.label) },
+      { value: "debut", label: seasonPartTitle("START", data.fiscalYear.label) }, { value: "sans", label: "Sans mois" }].map(item =>
+      <Button key={item.value} size="sm" variant={period === item.value ? "default" : "outline"} aria-pressed={period === item.value} onClick={() => onPeriod(item.value)}>{item.label}</Button>)}</div>
     <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-500">{countLabel(lines.length, "proposition", "propositions")} · montants en euros</p>
       {editable && <Button disabled={busy || !data.posts.length} onClick={() => setEditor({})}>Ajouter une compétition ou un stage</Button>}</div>
     <ErrorMessage message={error} />
@@ -41,7 +49,7 @@ export function PreparationLines({ data, canPrepare, team, onTeam, onChanged }: 
       return <Fragment key={post.id}><TableRow className="bg-primary-50"><TableCell colSpan={8} className="font-bold text-primary">{post.code} — {post.label}</TableCell></TableRow>
         {items.map(line => <TableRow key={line.id} className={editable ? "cursor-pointer" : ""} onClick={editable && !busy ? () => setEditor({ line }) : undefined}>
           <TableCell className="min-w-60">{editable ? <button className="text-left font-semibold text-primary hover:underline" disabled={busy} onClick={event => { event.stopPropagation(); setEditor({ line }); }}>{line.label}</button> : <span className="font-semibold">{line.label}</span>}
-            <p className="mt-1 text-xs text-slate-500">{monthLabel(line.plannedMonth)} · {teamLabels[line.team]} · {line.athleteCount === null ? "— tireurs" : countLabel(line.athleteCount, "tireur", "tireurs")} / {line.staffCount === null ? "— cadres" : countLabel(line.staffCount, "cadre", "cadres")} / {line.dayCount === null ? "— jours" : countLabel(line.dayCount, "jour", "jours")}</p>
+            <p className="mt-1 text-xs text-slate-500">{monthLabel(line.plannedMonth)}{seasonNote(line, post.kind)} · {teamLabels[line.team]} · {line.athleteCount === null ? "— tireurs" : countLabel(line.athleteCount, "tireur", "tireurs")} / {line.staffCount === null ? "— cadres" : countLabel(line.staffCount, "cadre", "cadres")} / {line.dayCount === null ? "— jours" : countLabel(line.dayCount, "jour", "jours")}</p>
             <p className="mt-1 text-xs text-slate-500">Proposé par {line.proposedByName ?? (line.source ? "reconduction de " + line.source.fiscalYearLabel : "—")}</p>{line.comment && <p className="mt-1 text-xs italic text-slate-500">{line.comment}</p>}
           </TableCell><TableCell><Badge variant="outline" className={decisionStyles[line.proposalStatus ?? "PROPOSED"]}>{proposalLabels[line.proposalStatus ?? "PROPOSED"]}</Badge>
             {editable && <div className="mt-2 flex flex-wrap gap-1" onClick={event => event.stopPropagation()}>{[["VALIDATED", "Retenir"], ["ARBITRATION", "À arbitrer"], ["REJECTED", "Écarter"]].map(([value, label]) =>
@@ -52,7 +60,7 @@ export function PreparationLines({ data, canPrepare, team, onTeam, onChanged }: 
           <TableCell onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={"Montant chiffré : " + line.label} checked={line.amountsConfirmed} disabled={!editable || busy} onChange={event => void patch(line, { amountsConfirmed: event.target.checked })} /></TableCell>
         </TableRow>)}<TableRow className="bg-slate-50">{subtotal(items)}</TableRow>
       </Fragment>;
-    })}{!lines.length && <TableRow><TableCell colSpan={8} className="py-8 text-center text-slate-500">Aucune proposition pour cette équipe.</TableCell></TableRow>}
+    })}{!lines.length && <TableRow><TableCell colSpan={8} className="py-8 text-center text-slate-500">Aucune proposition pour ce filtre.</TableCell></TableRow>}
       <TableRow className="bg-primary-50 font-bold">{subtotal(lines)}</TableRow>
     </TableBody></Table></CardContent></Card>
     {editable && editor && <PreparationLineForm line={editor.line} posts={data.posts} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); onChanged(); }} />}

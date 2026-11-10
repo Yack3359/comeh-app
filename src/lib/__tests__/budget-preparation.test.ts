@@ -54,24 +54,41 @@ describe("préparation du budget", () => {
     const suffix = count > 1 ? "s" : "";
     expect(progress.headline).toContain(count + " ligne" + suffix + " à confirmer, " + count + " montant" + suffix + " à chiffrer et " + count + " arbitrage" + suffix + " à rendre.");
     expect(progress.headline).toContain("1 jour restant");
-    expect(progress.todo).toEqual(["M17 : " + count + " ligne" + suffix + " à confirmer, " + count + " montant" + suffix + " à chiffrer, " + count + " ligne" + suffix + " à arbitrer"]);
+    expect(progress.todo).toEqual(["M17 : " + count + " ligne" + suffix + " à confirmer, " + count + " montant" + suffix + " à chiffrer, " + count + " ligne" + suffix + " à arbitrer, " + 2 * count + " mois à renseigner"]);
     expect(progress.steps[0].detail).toBe(2 * count + " lignes");
     expect(computePreparationProgress([line()], context).steps[0].detail).toBe("1 ligne");
   });
   it("construit le budget retenu ou haut, et le suivi selon inBudget", () => {
     const lines = [line({ proposalStatus: "VALIDATED", source }), line(), line({ proposalStatus: "REJECTED" })];
     const previous = { [post.code]: { budget: 19500, actual: 13640 } };
-    const retained = buildConstruction([post], lines, previous, { includePending: false });
+    const retained = buildConstruction([post], lines, previous, { includePending: false, fiscalYearLabel: "2027" });
     expect(retained.posts[0].lines).toHaveLength(1);
     expect(retained.totals.previousActual).toBe(13640);
     expect(retained.totals.variance).toBe(lines[0].revisedFederation - 19500);
     expect(retained.posts[0].lines[0].previousBudget).toBe(19500);
-    expect(buildConstruction([post], lines, previous, { includePending: true }).posts[0].lines).toHaveLength(2);
+    expect(buildConstruction([post], lines, previous, { includePending: true, fiscalYearLabel: "2027" }).posts[0].lines).toHaveLength(2);
     const execution = buildConstruction([post], [line({ status: "OPTION", includedInBudget: false, actualFederation: 50 }),
-      line({ status: "BUDGETED", includedInBudget: true, actualFederation: 100 })], previous, { includePending: false, phase: "EXECUTION" });
+      line({ status: "BUDGETED", includedInBudget: true, actualFederation: 100 })], previous, { includePending: false, phase: "EXECUTION", fiscalYearLabel: "2027" });
     expect(execution.posts[0].lines).toHaveLength(1);
     expect(execution.totals.actual.federation).toBe(150);
-    expect(buildConstruction([], [], {}, { includePending: false }).totals.federationPercent).toBe(0);
+    expect(buildConstruction([], [], {}, { includePending: false, fiscalYearLabel: "2027" }).totals.federationPercent).toBe(0);
+  });
+  it("répartit la construction par saison sportive", () => {
+    const lines = [line({ proposalStatus: "VALIDATED", plannedMonth: 3 }), line({ proposalStatus: "VALIDATED", plannedMonth: 10, revisedFederation: 40 }),
+      line({ proposalStatus: "VALIDATED" }), line({ plannedMonth: 9 })];
+    const result = buildConstruction([post], lines, {}, { includePending: false, fiscalYearLabel: "2027" });
+    expect(result).toMatchObject({ fiscalYearLabel: "2027", seasonLabels: { END: "26/27", START: "27/28" } });
+    for (const item of [result.posts[0], result.totals]) {
+      expect(item.seasonParts).toMatchObject({ END: { count: 1, federation: 100 }, START: { count: 1, federation: 40 }, NONE: { count: 1, federation: 100 } });
+      expect(item.seasonParts.END.federation + item.seasonParts.START.federation + item.seasonParts.NONE.federation).toBe(item.federation);
+    }
+    expect(buildConstruction([post], lines, {}, { includePending: true, fiscalYearLabel: "2027" }).totals.seasonParts.START).toMatchObject({ count: 2, gross: 300, clubIncome: 100 });
+  });
+  it("compte les mois à renseigner, hors frais annuels et lignes écartées", () => {
+    const progress = computePreparationProgress([line(), line({ plannedMonth: 3 }), line({ postKind: "OPERATING" }), line({ proposalStatus: "REJECTED" })], context);
+    expect(progress.undated).toBe(1);
+    expect(progress.todo[0]).toContain("1 mois à renseigner");
+    expect(computePreparationProgress([line({ plannedMonth: 3, proposalStatus: "VALIDATED", amountsConfirmed: true })], context).todo).toEqual([]);
   });
   it.each(["VALIDATED", "PROPOSED", "ARBITRATION", "REJECTED"] as const)("convertit %s au vote", status => {
     expect(voteOutcome(status, source)).toEqual({ status: status === "VALIDATED" ? "BUDGETED" : status === "REJECTED" ? "CANCELLED" : "OPTION",

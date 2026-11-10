@@ -24,6 +24,8 @@ function PreparationModuleContent({ canPrepare, canDecide, isAdmin }: Props) {
   const view = Object.prototype.hasOwnProperty.call(viewTitles, requested) ? requested as keyof typeof viewTitles : "avancement";
   const year = searchParams.get("fiscalYear") ?? "";
   const team = searchParams.get("equipe") ?? "all";
+  const requestedPeriod = searchParams.get("periode") ?? "all";
+  const period = ["fin", "debut", "sans"].includes(requestedPeriod) ? requestedPeriod : "all";
   const activeYear = useRef("");
   const [data, setData] = useState<PreparationData | null>(null);
   const [version, setVersion] = useState(0);
@@ -48,9 +50,10 @@ function PreparationModuleContent({ canPrepare, canDecide, isAdmin }: Props) {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [year, version]);
-  function changeView(next: keyof typeof viewTitles, nextTeam = team, nextYear = label) {
+  function changeView(next: keyof typeof viewTitles, nextTeam = team, nextYear = label, nextPeriod = period) {
     const params = new URLSearchParams(searchParams.toString()); params.set("vue", next); params.set("fiscalYear", nextYear);
     if (nextTeam === "all") params.delete("equipe"); else params.set("equipe", nextTeam);
+    if (nextPeriod === "all") params.delete("periode"); else params.set("periode", nextPeriod);
     router.replace("/preparation?" + params.toString(), { scroll: false });
   }
   async function open(copyFromPrevious: boolean) {
@@ -64,7 +67,7 @@ function PreparationModuleContent({ canPrepare, canDecide, isAdmin }: Props) {
       <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div className="max-w-3xl space-y-3"><div className="flex items-center gap-2"><p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-100">Préparer le budget</p>{!canPrepare && <Badge variant="outline" className="border-white/30 text-white">Lecture seule</Badge>}</div>
         <h1 className="text-2xl font-bold sm:text-3xl">Préparer le budget {label}</h1><p className="text-sm leading-6 text-blue-100">{data?.posts.length ? data.progress.headline : "Ouvrez la trame pour préparer ensemble les compétitions et les stages de l’année à venir."}</p>
         {data?.posts.length ? <><progress className="h-3 w-full accent-emerald-400" value={data.progress.percent} max={100} aria-label="Avancement global" /><p className="text-xs">{data.progress.percent} % · Échéance : {data.fiscalYear.preparationDeadline ? new Date(data.fiscalYear.preparationDeadline).toLocaleDateString("fr-FR", { timeZone: "UTC" }) : "à définir"}</p></> : null}
-      </div><div className="w-full shrink-0 rounded-xl bg-white/10 p-3 lg:w-64">{data ? <FieldSelect id="preparation-year" label="Exercice" value={label} disabled={loading || busy} onChange={next => changeView(view, "all", next)} options={data.fiscalYears.map(item => ({ value: item.label, label: item.label }))} /> : <p className="text-xl font-bold">Exercice {label}</p>}</div></div>
+      </div><div className="w-full shrink-0 rounded-xl bg-white/10 p-3 lg:w-64">{data ? <FieldSelect id="preparation-year" label="Exercice" value={label} disabled={loading || busy} onChange={next => changeView(view, "all", next, "all")} options={data.fiscalYears.map(item => ({ value: item.label, label: item.label }))} /> : <p className="text-xl font-bold">Exercice {label}</p>}</div></div>
     </div></section>
     <details className="rounded-xl border bg-white p-5 text-sm"><summary className="cursor-pointer font-semibold text-primary">Comment ça marche</summary><ol className="mt-3 list-decimal space-y-2 pl-5"><li>Confirmez les compétitions et les stages de chaque équipe.</li><li>Chiffrez les coûts et la prise en charge FFE, en vous aidant de l’année précédente.</li><li>Arbitrez les propositions pour tenir dans l’enveloppe prévue.</li><li>Votez le budget pour commencer le suivi des dépenses.</li></ol></details>
     <ErrorMessage message={error} />{error && <Button variant="outline" onClick={() => setVersion(value => value + 1)}>Réessayer</Button>}
@@ -78,7 +81,7 @@ function PreparationModuleContent({ canPrepare, canDecide, isAdmin }: Props) {
       <div className="flex flex-wrap gap-2" aria-label="Vues de la préparation">{Object.entries(viewTitles).map(([value, title]) => <Button key={value} variant={view === value ? "default" : "outline"} aria-pressed={view === value} onClick={() => changeView(value as keyof typeof viewTitles)}>{title}</Button>)}</div>
       <h2 className="text-xl font-bold text-primary">{viewTitles[view]}</h2>
       {view === "avancement" && <PreparationProgress key={data.fiscalYear.id + ":" + version} data={data} canDecide={canDecide} isAdmin={isAdmin} onTeam={team => changeView("lignes", team)} onChanged={() => setVersion(value => value + 1)} />}
-      {view === "lignes" && <PreparationLines data={data} canPrepare={canPrepare} team={team} onTeam={team => changeView("lignes", team)} onChanged={() => setVersion(value => value + 1)} />}
+      {view === "lignes" && <PreparationLines data={data} canPrepare={canPrepare} team={team} onTeam={team => changeView("lignes", team)} period={period} onPeriod={value => changeView("lignes", team, label, value)} onChanged={() => setVersion(value => value + 1)} />}
       {view === "construction" && <BudgetConstruction data={includePending ? data.construction.high : data.construction.retained} includePending={includePending} onIncludePending={data.fiscalYear.phase === "PREPARATION" ? setIncludePending : undefined} />}
     </>}
   </div>;
