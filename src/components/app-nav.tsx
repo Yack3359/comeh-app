@@ -54,6 +54,7 @@ function AppNavContent({ canImport, isAdmin }: AppNavProps) {
       { href: "/pilotage?vue=synthese", label: "Où en est-on ?", view: "synthese" },
       { href: "/pilotage?vue=actions", label: "Détail des actions", view: "actions" },
       { href: "/pilotage?vue=analyses", label: "Analyses par période", view: "analyses" },
+      { href: "/pilotage?vue=recettes", label: "Recettes clubs", view: "recettes" },
       { href: "/pilotage?vue=construction", label: "Construction du budget", view: "construction" },
       ...(canImport ? [{ href: "/pilotage?vue=import", label: "Importer la matrice FFE", view: "import" }] : []),
       { href: "/pilotage?vue=historique", label: "Historique des imports", view: "historique" },

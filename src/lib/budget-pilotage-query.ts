@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { buildMonthlyReportText, buildPilotageHeadline, computeActionFigures, computeFiscalYearSummary, isActionSettled, listVigilancePoints } from "./budget-pilotage";
+import { buildClubIncome, listClubIncomePoints } from "./budget-club-income";
 import { serializeBudgetAction } from "./budget-pilotage-data";
 import { buildReconciliation, listReconciliationPoints, reconcileAction } from "./budget-reconciliation";
 
@@ -50,14 +51,15 @@ export async function loadPilotage(label: string) {
   });
   const summary = computeFiscalYearSummary({ fiscalYear, posts, actions, asOfDate });
   const reconciliation = buildReconciliation(actions, unattached);
-  const vigilance = [...listVigilancePoints(summary, actions, { asOfDate, fiscalYearLabel: year.label }), ...listReconciliationPoints(actions)];
+  const clubIncome = buildClubIncome(posts, actions, context);
+  const vigilance = [...listVigilancePoints(summary, actions, { asOfDate, fiscalYearLabel: year.label }), ...listReconciliationPoints(actions), ...listClubIncomePoints(clubIncome.lines)];
   const snapshots = storedSnapshots.map(({ data: _data, ...snapshot }) => snapshot);
   // Old imports remain immutable; expose only the figures needed by history.
   const snapshotSummaries = storedSnapshots.flatMap(snapshot => {
     const parsed = snapshotSummary.safeParse(snapshot.data);
     return parsed.success ? [{ id: snapshot.id, asOfDate: snapshot.asOfDate, ...parsed.data }] : [];
   });
-  return { fiscalYear, fiscalYears, posts, actions, natures, summary, reconciliation, asOfDate, vigilance, snapshots, snapshotSummaries,
+  return { fiscalYear, fiscalYears, posts, actions, natures, summary, reconciliation, clubIncome, asOfDate, vigilance, snapshots, snapshotSummaries,
     headline: buildPilotageHeadline(summary, asOfDate),
     construction: buildConstruction(posts, actions, previous.totalsByPostCode, { includePending: false, phase: year.phase, fiscalYearLabel: year.label }),
     reportText: buildMonthlyReportText(summary, vigilance, asOfDate) };

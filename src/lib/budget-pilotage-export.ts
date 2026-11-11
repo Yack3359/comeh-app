@@ -1,12 +1,13 @@
 import ExcelJS from "exceljs";
 import { analysisPeriods, buildPeriodTable, type AnalysisFigures } from "./budget-analysis";
+import type { buildClubIncome } from "./budget-club-income";
 import type { ActionReconciliation } from "./budget-reconciliation";
 import { computeActionFigures, type FiscalYearSummary, type PilotageAction, type VigilancePoint } from "./budget-pilotage";
 import { categoryLabels, flagLabels, monthLabel, statusLabels } from "./budget-pilotage-labels";
 
 type ExportAction = PilotageAction & { postCode: string; fencingCategories: Array<keyof typeof categoryLabels>; notes: string | null; comment: string | null; entered?: ActionReconciliation; figures?: AnalysisFigures };
-export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }: {
-  summary: FiscalYearSummary; actions: ExportAction[]; vigilance: VigilancePoint[]; asOfDate?: Date | null;
+export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate, clubIncome }: {
+  summary: FiscalYearSummary; actions: ExportAction[]; vigilance: VigilancePoint[]; asOfDate?: Date | null; clubIncome?: ReturnType<typeof buildClubIncome>;
 }) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "COMEH";
@@ -48,6 +49,13 @@ export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }:
   const periods = buildPeriodTable(actions.map(action => ({ plannedMonth: action.plannedMonth,
     figures: action.figures ?? computeActionFigures(action, { asOfDate: asOfDate ?? null, fiscalYearLabel: summary.fiscalYearLabel }) })), analysisPeriods("month", summary.fiscalYearLabel), false);
   for (const row of [...periods.rows, periods.undated, periods.total]) monthly.addRow([row.label, row.count, row.budget, row.actual, row.remaining, row.landing, row.margin]);
+  const income = clubIncome ? workbook.addWorksheet("Recettes clubs") : null;
+  if (income && clubIncome) {
+    income.addRow(["Poste", "Action", "Mois", "Attendu", "Encaissé", "Reste à encaisser", "État", "En retard"]);
+    for (const line of clubIncome.lines) income.addRow([line.postCode, line.label, monthLabel(line.plannedMonth), line.expected, line.collected, line.outstanding,
+      { COLLECTED: "Encaissé", PARTIAL: "Partiel", PENDING: "À encaisser" }[line.state], line.overdue ? "Oui" : ""]);
+    income.addRow(["Total", "", "", clubIncome.totals.expected, clubIncome.totals.collected, clubIncome.totals.outstanding]);
+  }
   for (const sheet of workbook.worksheets) {
     sheet.views = [{ state: "frozen", ySplit: 1 }];
     sheet.eachRow(row => row.eachCell(cell => { cell.font = { name: "Arial", size: 10 }; cell.alignment = { vertical: "top", wrapText: true }; }));
@@ -67,5 +75,10 @@ export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }:
   for (let column = 3; column <= 7; column++) monthly.getColumn(column).numFmt = '# ##0 €';
   monthly.lastRow!.eachCell(cell => { cell.font = { name: "Arial", size: 10, bold: true }; });
   for (const row of [total, restitution, margin, actionTotals]) row.eachCell(cell => { cell.font = { name: "Arial", size: 10, bold: true }; });
+  if (income) {
+    income.getColumn(2).width = 52;
+    for (let column = 4; column <= 6; column++) income.getColumn(column).numFmt = '# ##0 €';
+    income.lastRow!.eachCell(cell => { cell.font = { name: "Arial", size: 10, bold: true }; });
+  }
   return workbook;
 }

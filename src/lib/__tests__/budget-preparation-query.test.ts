@@ -13,6 +13,7 @@ import { loadPreparation, preparationYearLabel } from "../budget-preparation-que
 import { loadPilotage } from "../budget-pilotage-query";
 import { buildPreparationWorkbook } from "../budget-preparation-export";
 import { GET as get } from "@/app/api/budget-preparation/route";
+import { GET as exportPilotage } from "@/app/api/pilotage/export/route";
 import { GET as exportBudget } from "@/app/api/budget-preparation/export/route";
 import { hasMinimumRole, roleLabels } from "../permissions";
 
@@ -101,6 +102,7 @@ describe("lecture et export de la préparation", () => {
     expect(data.fiscalYear.phase).toBe("PREPARATION");
     expect(data.actions[0].team).toBe("M20");
     expect(data.natures).toEqual([]);
+    expect(data.clubIncome).toEqual({ lines: [], posts: [], totals: { expected: 0, collected: 0, outstanding: 0, overdue: 0, count: 0 } });
     expect(data.headline).toContain("de budget FFE");
     expect(data.construction.posts[0].lines[0].previousActual).toBe(13640);
   });
@@ -119,6 +121,29 @@ describe("lecture et export de la préparation", () => {
     expect(data.actions[0].figures).toEqual(baseline.actions[0].figures);
     expect(data.summary).toEqual(baseline.summary);
     expect(baseline.actions[0].entered).toEqual({ amount: 0, count: 0, notBooked: 0 });
+  });
+  it("expose les recettes clubs, ajoute leur vigilance au rapport et les transmet à l’export", async () => {
+    db.budgetAction.findMany.mockImplementation(async ({ where }) => where.post.fiscalYearId === "previous" ? [] : [
+      { ...action(), status: "BUDGETED", actualClubIncome: decimal(7017) },
+    ]);
+    db.budgetSnapshot.findMany.mockResolvedValue([{ id: "snapshot", asOfDate: new Date("2027-10-25"), sourceFileName: "matrice.xlsx", createdAt: new Date("2027-10-25"), importedBy: { name: "Gestionnaire" }, data: {} }]);
+    db.expense.groupBy.mockResolvedValue([{ budgetActionId: "new", _sum: { amount: decimal(100) }, _count: { _all: 1 } }]);
+    const data = (await loadPilotage("2027"))!;
+    expect(data.clubIncome).toEqual({
+      lines: [{ id: "new", label: "Doha", postId: post.id, postCode: post.code, plannedMonth: 2, expected: 11000, collected: 7017, outstanding: 3983, state: "PARTIAL", overdue: true }],
+      posts: [{ code: post.code, label: post.label, expected: 11000, collected: 7017, outstanding: 3983, overdue: 3983, count: 1 }],
+      totals: { expected: 11000, collected: 7017, outstanding: 3983, overdue: 3983, count: 1 },
+    });
+    const point = { level: "orange", actionId: "new", postCode: post.code, message: "Doha : 3 983 € de recettes clubs restent à encaisser alors que l’action est passée" };
+    expect(data.vigilance[data.vigilance.length - 1]).toEqual(point);
+    expect(data.vigilance[data.vigilance.length - 2].message).toContain("de notes de frais saisies");
+    expect(data.reportText).toContain(point.message);
+    const response = await exportPilotage(new Request("http://localhost/api/pilotage/export?fiscalYear=2027"));
+    expect(response.status).toBe(200);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await response.arrayBuffer());
+    const sheet = workbook.getWorksheet("Recettes clubs")!;
+    expect([4, 5, 6, 7, 8].map(column => sheet.getRow(2).getCell(column).value)).toEqual([11000, 7017, 3983, "Partiel", "Oui"]);
   });
   it("regroupe les natures par nom et mois UTC dans les bornes de l’année civile", async () => {
     db.expense.findMany.mockResolvedValue([

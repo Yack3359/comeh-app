@@ -13,11 +13,12 @@ import { ErrorMessage, FieldSelect, pilotageRequest } from "./shared";
 import { PilotageSummary } from "./pilotage-summary";
 import { PilotageActions } from "./pilotage-actions";
 import { PilotageAnalysis } from "./pilotage-analysis";
+import { PilotageClubIncome } from "./pilotage-club-income";
 import { PilotageImport } from "./pilotage-import";
 import { PilotageHistory } from "./pilotage-history";
 import type { ImportResult, PilotageData } from "./types";
 
-const viewTitles = { synthese: "Où en est-on ?", actions: "Détail des actions", analyses: "Analyses par période", construction: "Construction du budget", import: "Importer la matrice FFE", historique: "Historique des imports" };
+const viewTitles = { synthese: "Où en est-on ?", actions: "Détail des actions", analyses: "Analyses par période", recettes: "Recettes clubs", construction: "Construction du budget", import: "Importer la matrice FFE", historique: "Historique des imports" };
 
 export function PilotageModule(props: { canManage: boolean }) {
   return <Suspense fallback={null}><PilotageModuleContent {...props} /></Suspense>;
@@ -92,6 +93,7 @@ function PilotageModuleContent({ canManage }: { canManage: boolean }) {
       {view === "synthese" && <PilotageSummary data={data} onPost={code => changeView("actions", code)} />}
       {view === "actions" && <PilotageActions data={data} canManage={canManage} postCode={postCode} onPostChange={code => changeView("actions", code)} onChanged={() => setVersion(value => value + 1)} />}
       {view === "analyses" && <PilotageAnalysis data={data} />}
+      {view === "recettes" && <PilotageClubIncome data={data} />}
       {view === "construction" && <BudgetConstruction data={data.construction} />}
       {view === "historique" && <PilotageHistory data={data} />}
     </>}
