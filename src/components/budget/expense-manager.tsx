@@ -67,6 +67,23 @@ type ExpenseManagerProps = {
   onChanged: () => void;
 };
 
+type BudgetActionOption = {
+  id: string;
+  label: string;
+  postCode: string;
+  postLabel: string;
+  fiscalYearLabel: string;
+  plannedMonth: number | null;
+  competitionId: string | null;
+};
+
+function expenseActionLabel(expense: Expense) {
+  const action = expense.budgetAction;
+  return action
+    ? `Action : ${action.post.code} — ${action.label} (${action.post.fiscalYear.label})`
+    : "Sans action budgétaire";
+}
+
 function initialDate(season?: Season) {
   const today = new Date();
   const todayValue = dateInputValue(today);
@@ -99,6 +116,7 @@ export function ExpenseManager({
 }: ExpenseManagerProps) {
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [budgetActions, setBudgetActions] = useState<BudgetActionOption[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [groupByCompetition, setGroupByCompetition] = useState(false);
   const [viewingGroupKey, setViewingGroupKey] = useState<string | null>(null);
@@ -107,6 +125,7 @@ export function ExpenseManager({
     FencingCategoryValue | "NONE"
   >("NONE");
   const [competitionId, setCompetitionId] = useState<string>("NONE");
+  const [budgetActionId, setBudgetActionId] = useState("AUTO");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
@@ -125,6 +144,7 @@ export function ExpenseManager({
     FencingCategoryValue | "NONE"
   >("NONE");
   const [editCompetitionId, setEditCompetitionId] = useState("NONE");
+  const [editBudgetActionId, setEditBudgetActionId] = useState("NONE");
   const [editAmount, setEditAmount] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -181,6 +201,19 @@ export function ExpenseManager({
     );
   }, [seasonId]);
 
+  const loadBudgetActions = useCallback(async () => {
+    if (!currentSeason) {
+      setBudgetActions([]);
+      return;
+    }
+
+    setBudgetActions(
+      await requestJson<BudgetActionOption[]>(
+        `/api/budget-actions?season=${encodeURIComponent(currentSeason.label)}`,
+      ),
+    );
+  }, [currentSeason]);
+
   const loadExpenses = useCallback(async () => {
     if (!seasonId) {
       setExpenses([]);
@@ -211,6 +244,7 @@ export function ExpenseManager({
     setFencingCategoryFilter("all");
     setCompetitionFilter("all");
     setCompetitionId("NONE");
+    setBudgetActionId("AUTO");
     setSelectedIds(new Set());
     setViewingGroupKey(null);
     setDate(initialDate(currentSeason));
@@ -277,6 +311,15 @@ export function ExpenseManager({
 
   useEffect(() => {
     setError(null);
+    void loadBudgetActions().catch((loadError: unknown) => {
+      setError(
+        loadError instanceof Error ? loadError.message : "Chargement impossible",
+      );
+    });
+  }, [loadBudgetActions]);
+
+  useEffect(() => {
+    setError(null);
     void loadExpenses().catch((loadError: unknown) => {
       setError(
         loadError instanceof Error ? loadError.message : "Chargement impossible",
@@ -323,6 +366,11 @@ export function ExpenseManager({
           fencingCategory:
             fencingCategory === "NONE" ? null : fencingCategory,
           competitionId: competitionId === "NONE" ? null : competitionId,
+          ...(budgetActionId === "AUTO"
+            ? {}
+            : {
+                budgetActionId: budgetActionId === "NONE" ? null : budgetActionId,
+              }),
           amount,
           date,
           description,
@@ -365,6 +413,7 @@ export function ExpenseManager({
     setEditCategoryId(expense.categoryId);
     setEditFencingCategory(expense.fencingCategory ?? "NONE");
     setEditCompetitionId(expense.competitionId ?? "NONE");
+    setEditBudgetActionId(expense.budgetActionId ?? "NONE");
     setEditAmount(expense.amount);
     setEditDate(dateInputValue(new Date(expense.date)));
     setEditDescription(expense.description);
@@ -395,6 +444,8 @@ export function ExpenseManager({
               editFencingCategory === "NONE" ? null : editFencingCategory,
             competitionId:
               editCompetitionId === "NONE" ? null : editCompetitionId,
+            budgetActionId:
+              editBudgetActionId === "NONE" ? null : editBudgetActionId,
             amount: editAmount,
             date: editDate,
             description: editDescription,
@@ -403,10 +454,11 @@ export function ExpenseManager({
       );
       if (editAttachmentFile) {
         try {
-          updated = await uploadAttachment(
+          const attached = await uploadAttachment(
             editingExpense.id,
             editAttachmentFile,
           );
+          updated = { ...updated, attachmentUrl: attached.attachmentUrl };
         } catch (uploadError) {
           setWarning(
             `La dépense a été modifiée, mais le justificatif n’a pas pu être ajouté : ${
@@ -587,6 +639,9 @@ export function ExpenseManager({
               {expense.description}
             </p>
           ) : null}
+          <p className="mt-1 text-xs text-slate-500">
+            {expenseActionLabel(expense)}
+          </p>
           {expense.attachmentUrl ? (
             <a
               className="mt-1 inline-flex items-center text-xs font-medium text-primary underline-offset-2 hover:underline"
@@ -764,6 +819,26 @@ export function ExpenseManager({
                     </span>
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expense-budget-action">Action budgétaire</Label>
+                <Select onValueChange={setBudgetActionId} value={budgetActionId}>
+                  <SelectTrigger id="expense-budget-action">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AUTO">
+                      Automatique (d’après la compétition)
+                    </SelectItem>
+                    <SelectItem value="NONE">Aucune action</SelectItem>
+                    {budgetActions.map((action) => (
+                      <SelectItem key={action.id} value={action.id}>
+                        {action.fiscalYearLabel} · {action.postCode} — {action.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -1217,6 +1292,38 @@ export function ExpenseManager({
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="edit-expense-budget-action">
+                  Action budgétaire
+                </Label>
+                <Select
+                  onValueChange={setEditBudgetActionId}
+                  value={editBudgetActionId}
+                >
+                  <SelectTrigger id="edit-expense-budget-action">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">Aucune action</SelectItem>
+                    {editingExpense.budgetAction &&
+                    !budgetActions.some(
+                      (action) => action.id === editingExpense.budgetActionId,
+                    ) ? (
+                      <SelectItem value={editingExpense.budgetAction.id}>
+                        {editingExpense.budgetAction.post.fiscalYear.label} ·{" "}
+                        {editingExpense.budgetAction.post.code} —{" "}
+                        {editingExpense.budgetAction.label}
+                      </SelectItem>
+                    ) : null}
+                    {budgetActions.map((action) => (
+                      <SelectItem key={action.id} value={action.id}>
+                        {action.fiscalYearLabel} · {action.postCode} — {action.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="edit-expense-date">Date</Label>
                 <Input
                   id="edit-expense-date"
@@ -1433,6 +1540,9 @@ export function ExpenseManager({
                 <X className="h-4 w-4" />
               </Button>
             </div>
+            <p className="mb-3 text-xs text-slate-500">
+              {expenseActionLabel(detailExpense)}
+            </p>
             <dl className="space-y-3 text-sm">
               <div>
                 <dt className="text-xs font-semibold uppercase text-slate-400">

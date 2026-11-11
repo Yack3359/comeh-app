@@ -1,8 +1,9 @@
 import ExcelJS from "exceljs";
+import type { ActionReconciliation } from "./budget-reconciliation";
 import { computeActionFigures, type FiscalYearSummary, type PilotageAction, type VigilancePoint } from "./budget-pilotage";
 import { categoryLabels, flagLabels, monthLabel, statusLabels } from "./budget-pilotage-labels";
 
-type ExportAction = PilotageAction & { postCode: string; fencingCategories: Array<keyof typeof categoryLabels>; notes: string | null; comment: string | null };
+type ExportAction = PilotageAction & { postCode: string; fencingCategories: Array<keyof typeof categoryLabels>; notes: string | null; comment: string | null; entered?: ActionReconciliation };
 export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }: {
   summary: FiscalYearSummary; actions: ExportAction[]; vigilance: VigilancePoint[]; asOfDate?: Date | null;
 }) {
@@ -24,13 +25,13 @@ export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }:
   const margin = synthesis.addRow(["Marge globale"]);
   margin.getCell(2).value = { formula: "SUM(G" + total.number + ",-B" + restitution.number + ")", result: summary.globalMargin };
   const details = workbook.addWorksheet("Actions");
-  details.addRow(["Poste", "Libellé", "Statut", "Mois", "Catégories", "Budget initial FFE", "Budget révisé FFE", "Rallonge / ajustement FFE", "Budget total FFE", "Réalisé FFE", "Reste à venir FFE", "Atterrissage FFE (total)", "Écart", "Brut budgété", "Recettes budgétées", "Brut réalisé", "Recettes réalisées", "Notes", "Commentaire"]);
+  details.addRow(["Poste", "Libellé", "Statut", "Mois", "Catégories", "Budget initial FFE", "Budget révisé FFE", "Rallonge / ajustement FFE", "Budget total FFE", "Réalisé FFE", "Reste à venir FFE", "Atterrissage FFE (total)", "Écart", "Brut budgété", "Recettes budgétées", "Brut réalisé", "Recettes réalisées", "Notes", "Commentaire", "Saisi notes de frais", "Non repris par la fédé"]);
   for (const action of actions) {
     const figures = computeActionFigures(action, { asOfDate: asOfDate ?? null, fiscalYearLabel: summary.fiscalYearLabel });
     details.addRow([action.postCode, action.label, statusLabels[action.status], monthLabel(action.plannedMonth),
       action.fencingCategories.map(category => categoryLabels[category]).join(", "),
       action.initialFederation, action.revisedFederation, action.adjustmentFederation, figures.budget, figures.actual, figures.remaining, figures.landing, figures.variance,
-      action.revisedGross, action.revisedClubIncome, action.actualGross, action.actualClubIncome, action.notes, action.comment]);
+      action.revisedGross, action.revisedClubIncome, action.actualGross, action.actualClubIncome, action.notes, action.comment, action.entered?.amount ?? 0, action.entered?.notBooked ?? 0]);
   }
   const actionTotals = details.addRow(["Total"]);
   for (let column = 6; column <= 17; column++) {
@@ -56,6 +57,7 @@ export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }:
   alerts.getColumn(3).width = 110;
   for (let column = 2; column <= 7; column++) synthesis.getColumn(column).numFmt = '# ##0 €';
   for (let column = 6; column <= 17; column++) details.getColumn(column).numFmt = '# ##0 €';
+  for (const column of [20, 21]) details.getColumn(column).numFmt = '# ##0 €';
   for (const row of [total, restitution, margin, actionTotals]) row.eachCell(cell => { cell.font = { name: "Arial", size: 10, bold: true }; });
   return workbook;
 }

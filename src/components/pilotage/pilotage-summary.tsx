@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AlertCircle, AlertTriangle, Copy, Download, Info, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/components/budget/utils";
+import { countLabel } from "@/lib/budget-pilotage-labels";
 import { ErrorMessage, FlagBadge, flagStyles } from "./shared";
 import { PilotageHeadline } from "./pilotage-headline";
 import type { PilotageData } from "./types";
@@ -50,6 +52,14 @@ export function PilotageSummary({ data, onPost }: { data: PilotageData; onPost: 
         </button>
       </Card>;
     })}</div>
+    {data.fiscalYear.phase === "EXECUTION" && <Card className="shadow-institutional"><CardHeader><CardTitle>Rapprochement avec les notes de frais</CardTitle></CardHeader><CardContent className="space-y-4">
+      <dl className="grid gap-4 md:grid-cols-3">
+        <div><dt className="text-sm text-slate-500">Saisi dans l’appli et rattaché à une action</dt><dd className="mt-1 text-xl font-bold tabular-nums">{formatCurrency(data.reconciliation.entered)}</dd><dd className="text-xs text-slate-500">{countLabel(data.reconciliation.count, "note", "notes")}</dd></div>
+        <div><dt className="text-sm text-slate-500">Pas encore repris par la fédé</dt><dd className="mt-1 text-xl font-bold tabular-nums">{formatCurrency(data.reconciliation.notBooked)}</dd></div>
+        <div><dt className="text-sm text-slate-500">Notes de frais {data.fiscalYear.label} sans action</dt><dd className="mt-1 text-xl font-bold tabular-nums">{formatCurrency(data.reconciliation.unattached.amount)}</dd><dd className="text-xs text-slate-500">{countLabel(data.reconciliation.unattached.count, "note", "notes")}</dd></div>
+      </dl><p className="text-sm text-slate-500">Le réalisé fédé vient de la matrice ; les notes de frais saisies ici montrent ce qui reste à comptabiliser.</p>
+      <Link href="/budget?vue=notes" className="text-sm font-semibold text-primary underline-offset-4 hover:underline">Voir les notes de frais</Link>
+    </CardContent></Card>}
     <Card className="shadow-institutional"><CardHeader><CardTitle>Points de vigilance</CardTitle></CardHeader><CardContent className="space-y-5">
       {!data.vigilance.length && <p className="text-sm text-slate-500">Aucun point de vigilance.</p>}
       {summary.posts.map(post => { const points = data.vigilance.filter(point => point.postCode === post.code); return points.length ? <div key={post.code}>

@@ -20,6 +20,7 @@ import {
   toResultData,
   validateResultRelations,
 } from "@/lib/ranking-results";
+import { pickActionForExpense, type ActionCandidate } from "@/lib/expense-action";
 import { prisma } from "@/lib/prisma";
 
 const writeRoles = [Role.ADMIN, Role.COMEH_MEMBER] as const;
@@ -117,6 +118,7 @@ export async function POST(request: Request, context: RouteContext) {
           }
         }
 
+        let actionCandidates: ActionCandidate[] = [];
         if (parsedBody.data.target === "expense") {
           const season = await prisma.season.findUnique({
             where: { id: envelope.seasonId },
@@ -250,6 +252,32 @@ export async function POST(request: Request, context: RouteContext) {
           }
         }
 
+        if (parsedBody.data.target === "expense") {
+          const competitionIds = [
+            ...new Set(
+              parsedBody.data.rows
+                .map(({ data }) => data.competitionId)
+                .filter((id): id is string => Boolean(id)),
+            ),
+          ];
+          const actions = await prisma.budgetAction.findMany({
+            where: {
+              competitionId: { in: competitionIds },
+              post: { fiscalYear: { phase: "EXECUTION" } },
+            },
+            select: {
+              id: true,
+              competitionId: true,
+              post: { select: { fiscalYear: { select: { label: true } } } },
+            },
+          });
+          actionCandidates = actions.map((action) => ({
+            id: action.id,
+            competitionId: action.competitionId,
+            fiscalYearLabel: action.post.fiscalYear.label,
+          }));
+        }
+
         const claimed = await prisma.importBatch.updateMany({
           where: {
             id: batch.id,
@@ -285,6 +313,11 @@ export async function POST(request: Request, context: RouteContext) {
                     categoryId: row.data.categoryId,
                     fencingCategory: row.data.fencingCategory,
                     competitionId: row.data.competitionId,
+                    budgetActionId: pickActionForExpense(
+                      actionCandidates,
+                      row.data.competitionId,
+                      row.data.date,
+                    ),
                     amount: row.data.amount,
                     date: new Date(`${row.data.date}T00:00:00.000Z`),
                     description: row.data.description,

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency } from "@/components/budget/utils";
-import { categoryLabels, flagLabels, monthLabel, statusLabels } from "@/lib/budget-pilotage-labels";
+import { categoryLabels, countLabel, flagLabels, monthLabel, statusLabels } from "@/lib/budget-pilotage-labels";
 import { FieldSelect } from "./shared";
 import { PilotageActionForm } from "./pilotage-action-form";
 import type { BudgetAction, PilotageData } from "./types";
@@ -43,7 +43,7 @@ export function PilotageActions({ data, canManage, postCode, onPostChange, onCha
       <FieldSelect id="filter-category" label="Catégorie d’âge" value={category} onChange={setCategory} options={[{ value: "all", label: "Toutes les catégories" }, ...Object.entries(categoryLabels).map(([value, label]) => ({ value, label }))]} />
       <div className="space-y-1.5"><Label htmlFor="action-search">Recherche</Label><Input id="action-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Libellé, notes ou commentaire" /></div>
     </div><label data-print-hide className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showGross} onChange={event => setShowGross(event.target.checked)} />Afficher brut et recettes</label>
-      <div className="max-w-full overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Action</TableHead><TableHead>Statut</TableHead><TableHead>Budget FFE</TableHead><TableHead>Réalisé</TableHead><TableHead>Reste à venir</TableHead><TableHead>Atterrissage (total)</TableHead><TableHead>Écart</TableHead><TableHead>Drapeau</TableHead>
+      <div className="max-w-full overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Action</TableHead><TableHead>Statut</TableHead><TableHead>Budget FFE</TableHead><TableHead>Réalisé fédé</TableHead><TableHead>Reste à venir</TableHead><TableHead>Atterrissage (total)</TableHead><TableHead>Écart</TableHead><TableHead>Drapeau</TableHead>
         {showGross && <><TableHead>Brut budgété</TableHead><TableHead>Recettes budgétées</TableHead><TableHead>Brut réalisé</TableHead><TableHead>Recettes réalisées</TableHead></>}
       </TableRow></TableHeader><TableBody>
         {data.posts.filter(post => postCode === "all" || post.code === postCode).map(post => {
@@ -64,7 +64,10 @@ export function PilotageActions({ data, canManage, postCode, onPostChange, onCha
                 </div>{action.comment && <p className="mt-1 line-clamp-2 text-xs italic text-slate-500" title={action.comment}>{action.comment}</p>}<div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-slate-500"><span>{monthLabel(action.plannedMonth)}</span>{action.fencingCategories.map(value => <Badge key={value} variant="outline">{categoryLabels[value]}</Badge>)}</div></TableCell>
                 <TableCell><Badge variant="outline" className={statusStyles[action.status]}>{statusLabels[action.status]}</Badge>{action.status === "DONE" && !action.isSettled && <Badge variant="outline" className="mt-1 border-amber-200 bg-amber-50 text-amber-700">En attente de factures</Badge>}</TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.budget)}{figures.budget !== action.initialFederation && <p className="text-xs text-slate-400 line-through">{formatCurrency(action.initialFederation)}</p>}</TableCell>
-                <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.actual)}</TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.actual)}
+                  {action.entered.count > 0 && <p className="text-xs text-slate-500">saisi : {formatCurrency(action.entered.amount)} ({countLabel(action.entered.count, "note", "notes")})</p>}
+                  {action.entered.notBooked > 0.5 && <p className="text-xs font-semibold text-amber-700">dont {formatCurrency(action.entered.notBooked)} pas encore repris par la fédé</p>}
+                </TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.remaining)}</TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">{formatCurrency(figures.landing)}</TableCell><TableCell className={"whitespace-nowrap tabular-nums " + (figures.variance > 0 ? "font-semibold text-accent-700" : "")}>{formatCurrency(figures.variance)}</TableCell>
                 <TableCell><span role="img" aria-label={flagLabels[flag]} title={flagLabels[flag]} className={"inline-block h-3 w-3 rounded-full " + ({ green: "bg-emerald-500", orange: "bg-amber-500", red: "bg-accent" }[flag])} /></TableCell>

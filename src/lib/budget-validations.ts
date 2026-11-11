@@ -60,6 +60,7 @@ export const expenseCreateSchema = z.object({
   categoryId: idSchema,
   fencingCategory: z.nativeEnum(FencingCategory).nullable().optional().default(null),
   competitionId: idSchema.nullable().optional().default(null),
+  budgetActionId: idSchema.nullable().optional(),
   amount: amountSchema.refine((value) => Number(value) > 0, "Le montant doit être positif"),
   date: z
     .string()

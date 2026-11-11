@@ -44,6 +44,12 @@ export type Expense = {
   categoryId: string;
   fencingCategory: FencingCategoryValue | null;
   competitionId: string | null;
+  budgetActionId: string | null;
+  budgetAction: {
+    id: string;
+    label: string;
+    post: { code: string; fiscalYear: { label: string } };
+  } | null;
   amount: string;
   date: string;
   description: string;

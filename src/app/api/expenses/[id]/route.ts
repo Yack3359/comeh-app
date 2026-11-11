@@ -5,6 +5,7 @@ import { z } from "zod";
 import { runAsAuthenticatedUser } from "@/lib/api-auth";
 import { apiErrorResponse, invalidDataResponse } from "@/lib/api-response";
 import { expenseUpdateSchema } from "@/lib/budget-validations";
+import { resolveExpenseAction } from "@/lib/expense-action";
 import { prisma } from "@/lib/prisma";
 
 const writeRoles = [Role.ADMIN, Role.COMEH_MEMBER] as const;
@@ -35,7 +36,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       async () => {
         const existingExpense = await prisma.expense.findUnique({
           where: { id: parsedParams.data.id },
-          select: { id: true, seasonId: true },
+          select: {
+            id: true,
+            seasonId: true,
+            competitionId: true,
+            budgetActionId: true,
+          },
         });
 
         if (!existingExpense) {
@@ -86,12 +92,29 @@ export async function PATCH(request: Request, context: RouteContext) {
           return { status: "outside_season" as const };
         }
 
+        const action =
+          parsedBody.data.budgetActionId === undefined &&
+          parsedBody.data.competitionId === existingExpense.competitionId
+            ? {
+                ok: true as const,
+                budgetActionId: existingExpense.budgetActionId,
+              }
+            : await resolveExpenseAction(prisma, {
+                requested: parsedBody.data.budgetActionId,
+                competitionId: parsedBody.data.competitionId,
+                date: parsedBody.data.date,
+              });
+        if (!action.ok) {
+          return { status: "invalid_action" as const };
+        }
+
         const expense = await prisma.expense.update({
           where: { id: existingExpense.id },
           data: {
             categoryId: parsedBody.data.categoryId,
             fencingCategory: parsedBody.data.fencingCategory,
             competitionId: parsedBody.data.competitionId,
+            budgetActionId: action.budgetActionId,
             amount: parsedBody.data.amount,
             date: expenseDate,
             description: parsedBody.data.description,
@@ -107,6 +130,19 @@ export async function PATCH(request: Request, context: RouteContext) {
             source: true,
             attachmentUrl: true,
             competitionId: true,
+            budgetActionId: true,
+            budgetAction: {
+              select: {
+                id: true,
+                label: true,
+                post: {
+                  select: {
+                    code: true,
+                    fiscalYear: { select: { label: true } },
+                  },
+                },
+              },
+            },
             category: {
               select: { name: true },
             },
@@ -151,6 +187,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (result.status === "invalid_competition") {
       return NextResponse.json(
         { error: "La compétition sélectionnée n’appartient pas à cette saison" },
+        { status: 400 },
+      );
+    }
+
+    if (result.status === "invalid_action") {
+      return NextResponse.json(
+        {
+          error:
+            "L’action budgétaire sélectionnée est introuvable ou son budget n’est pas encore voté",
+        },
         { status: 400 },
       );
     }

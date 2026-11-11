@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import { pilotageAction, post } from "./budget-fixtures";
 
 const db = vi.hoisted(() => ({ fiscalYear: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
+  expense: { groupBy: vi.fn(), aggregate: vi.fn() },
   budgetPost: { findMany: vi.fn() }, budgetAction: { findMany: vi.fn() }, budgetSnapshot: { findFirst: vi.fn(), findMany: vi.fn() } }));
 const authenticate = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -37,6 +38,8 @@ beforeEach(() => {
   db.budgetAction.findMany.mockImplementation(async ({ where }) => where.post.fiscalYearId === "previous" ? [{ ...action().sourceAction, postId: post.id }] : [action()]);
   db.budgetSnapshot.findFirst.mockResolvedValue({ asOfDate: new Date("2026-10-25") });
   db.budgetSnapshot.findMany.mockResolvedValue([]);
+  db.expense.groupBy.mockResolvedValue([]);
+  db.expense.aggregate.mockResolvedValue({ _sum: { amount: null }, _count: { _all: 0 } });
 });
 describe("lecture et export de la préparation", () => {
   it("choisit la première préparation puis l’année civile suivante", async () => {
@@ -97,6 +100,22 @@ describe("lecture et export de la préparation", () => {
     expect(data.fiscalYear.phase).toBe("PREPARATION");
     expect(data.headline).toContain("de budget FFE");
     expect(data.construction.posts[0].lines[0].previousActual).toBe(13640);
+  });
+  it("rapproche les notes par action et année civile sans changer les chiffres fédé", async () => {
+    const baseline = (await loadPilotage("2027"))!;
+    db.expense.groupBy.mockResolvedValue([{ budgetActionId: "new", _sum: { amount: decimal(1234.56) }, _count: { _all: 3 } }]);
+    db.expense.aggregate.mockResolvedValue({ _sum: { amount: decimal(45.67) }, _count: { _all: 2 } });
+    const data = (await loadPilotage("2027"))!;
+    expect(db.expense.groupBy).toHaveBeenLastCalledWith({ by: ["budgetActionId"], where: { budgetAction: { post: { fiscalYearId: "fy" } } }, _sum: { amount: true }, _count: { _all: true } });
+    expect(db.expense.aggregate).toHaveBeenLastCalledWith({ where: { budgetActionId: null, date: { gte: new Date("2027-01-01T00:00:00.000Z"), lt: new Date("2028-01-01T00:00:00.000Z") } }, _sum: { amount: true }, _count: { _all: true } });
+    expect(data.actions[0].entered).toEqual({ amount: 1234.56, count: 3, notBooked: 1234.56 });
+    expect(data.reconciliation).toEqual({ entered: 1234.56, count: 3, notBooked: 1234.56, unattached: { amount: 45.67, count: 2 } });
+    const point = data.vigilance.find(item => item.message.includes("de notes de frais saisies"))!;
+    expect(point).toMatchObject({ level: "info", actionId: "new", postCode: post.code });
+    expect(data.reportText).toContain(point.message);
+    expect(data.actions[0].figures).toEqual(baseline.actions[0].figures);
+    expect(data.summary).toEqual(baseline.summary);
+    expect(baseline.actions[0].entered).toEqual({ amount: 0, count: 0, notBooked: 0 });
   });
   it("donne à l’entraîneur le poids lecture seule", () => {
     expect(roleLabels.CONTRIBUTOR).toBe("Entraîneur (préparation du budget)");

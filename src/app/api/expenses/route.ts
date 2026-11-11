@@ -7,6 +7,7 @@ import {
   expenseCreateSchema,
   expenseQuerySchema,
 } from "@/lib/budget-validations";
+import { resolveExpenseAction } from "@/lib/expense-action";
 import { prisma } from "@/lib/prisma";
 
 const writeRoles = [Role.ADMIN, Role.COMEH_MEMBER] as const;
@@ -46,6 +47,19 @@ export async function GET(request: Request) {
           source: true,
           attachmentUrl: true,
           competitionId: true,
+          budgetActionId: true,
+          budgetAction: {
+            select: {
+              id: true,
+              label: true,
+              post: {
+                select: {
+                  code: true,
+                  fiscalYear: { select: { label: true } },
+                },
+              },
+            },
+          },
           category: {
             select: { name: true },
           },
@@ -131,12 +145,22 @@ export async function POST(request: Request) {
           return { status: "outside_season" as const };
         }
 
+        const action = await resolveExpenseAction(prisma, {
+          requested: parsedBody.data.budgetActionId,
+          competitionId: parsedBody.data.competitionId,
+          date: parsedBody.data.date,
+        });
+        if (!action.ok) {
+          return { status: "invalid_action" as const };
+        }
+
         const expense = await prisma.expense.create({
           data: {
             seasonId: season.id,
             categoryId: category.id,
             fencingCategory: parsedBody.data.fencingCategory,
             competitionId: parsedBody.data.competitionId,
+            budgetActionId: action.budgetActionId,
             amount: parsedBody.data.amount,
             date: expenseDate,
             description: parsedBody.data.description,
@@ -165,6 +189,16 @@ export async function POST(request: Request) {
     if (result.status === "invalid_competition") {
       return NextResponse.json(
         { error: "La compétition sélectionnée n’appartient pas à cette saison" },
+        { status: 400 },
+      );
+    }
+
+    if (result.status === "invalid_action") {
+      return NextResponse.json(
+        {
+          error:
+            "L’action budgétaire sélectionnée est introuvable ou son budget n’est pas encore voté",
+        },
         { status: 400 },
       );
     }

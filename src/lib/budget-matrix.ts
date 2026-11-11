@@ -1,5 +1,7 @@
 import ExcelJS from "exceljs";
 import { isPlannedMonthPast } from "./budget-date";
+import { roundAmount } from "./budget-amount";
+export { roundAmount } from "./budget-amount";
 
 export type FencingCategoryValue = "SENIOR" | "U23" | "M20" | "M17" | "M15" | "M13";
 export type MatrixAction = {
@@ -25,7 +27,6 @@ export type ParsedMatrix = {
 };
 
 const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-export const roundAmount = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const stopWords = new Set("fait option pers personnes cadre cadres jours j eq et ou de du la le les a au en ffe".split(" "));
 export function normalizeMatrixLabel(label: string): string {
   return [...new Set(normalize(label).replace(/[^a-z0-9]+/g, " ").split(" ")

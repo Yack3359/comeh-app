@@ -1,6 +1,6 @@
 import type { BudgetActionStatus, BudgetPostKind } from "@prisma/client";
 import { isPlannedMonthPast } from "./budget-date";
-import { roundAmount } from "./budget-matrix";
+import { roundAmount } from "./budget-amount";
 
 export type PilotageAction = {
   id: string; postId: string; label: string; plannedMonth: number | null; status: BudgetActionStatus;
@@ -78,7 +78,7 @@ export function computeFiscalYearSummary({ fiscalYear, posts, actions, asOfDate 
     flag: flagFor(totals.budget, totals.actual, totals.landing + restitution) };
 }
 export type VigilancePoint = { level: "red" | "orange" | "info"; postCode: string; actionId?: string; message: string };
-const money = (amount: number) => amount.toLocaleString("fr-FR", { maximumFractionDigits: 2 }).replace(/[\u00a0\u202f]/g, " ") + " €";
+export const money = (amount: number) => amount.toLocaleString("fr-FR", { maximumFractionDigits: 2 }).replace(/[\u00a0\u202f]/g, " ") + " €";
 export function listVigilancePoints(summary: FiscalYearSummary, actions: Array<PilotageAction & { postCode: string }>,
   context?: { asOfDate: Date | null; fiscalYearLabel: string }): VigilancePoint[] {
   const points: VigilancePoint[] = [];

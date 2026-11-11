@@ -6,7 +6,7 @@ import { pilotageAction, post } from "./budget-fixtures";
 describe("pilotage Excel export", () => {
   it("exports the commission comment immediately after matrix notes", () => {
     const actions = [{ ...pilotageAction(), postCode: post.code, fencingCategories: [],
-      notes: "Note de la matrice", comment: "Décision de la commission" }];
+      notes: "Note de la matrice", comment: "Décision de la commission", entered: { amount: 1234.56, count: 3, notBooked: 234.56 } }];
     const summary = computeFiscalYearSummary({
       fiscalYear: { label: "2026", restitutionAmount: 0 }, posts: [post], actions,
     });
@@ -16,6 +16,10 @@ describe("pilotage Excel export", () => {
     expect(sheet.getRow(2).getCell(18).value).toBe("Note de la matrice");
     expect(sheet.getRow(2).getCell(19).value).toBe("Décision de la commission");
     expect(sheet.getRow(2).getCell(9).value).toBe(100);
+    expect(sheet.getRow(1).cellCount).toBe(21);
+    expect([20, 21].map(column => sheet.getRow(1).getCell(column).value)).toEqual(["Saisi notes de frais", "Non repris par la fédé"]);
+    expect([20, 21].map(column => sheet.getRow(2).getCell(column).value)).toEqual([1234.56, 234.56]);
+    expect(sheet.getRow(3).getCell(9).value).toEqual({ formula: "SUM(I2:I2)", result: 100 });
   });
 });
 
@@ -33,5 +37,6 @@ describe("realized, remaining and landing export", () => {
     expect([10, 11, 12].map(column => details.getRow(2).getCell(column).value)).toEqual([20, 0, 20]);
     expect([10, 11, 12].map(column => details.getRow(3).getCell(column).value)).toEqual([20, 80, 100]);
     expect(details.getRow(4).getCell(11).value).toEqual({ formula: "SUM(K2:K3)", result: 80 });
+    expect([20, 21].map(column => details.getRow(2).getCell(column).value)).toEqual([0, 0]);
   });
 });
