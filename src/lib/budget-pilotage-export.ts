@@ -1,9 +1,10 @@
 import ExcelJS from "exceljs";
+import { analysisPeriods, buildPeriodTable, type AnalysisFigures } from "./budget-analysis";
 import type { ActionReconciliation } from "./budget-reconciliation";
 import { computeActionFigures, type FiscalYearSummary, type PilotageAction, type VigilancePoint } from "./budget-pilotage";
 import { categoryLabels, flagLabels, monthLabel, statusLabels } from "./budget-pilotage-labels";
 
-type ExportAction = PilotageAction & { postCode: string; fencingCategories: Array<keyof typeof categoryLabels>; notes: string | null; comment: string | null; entered?: ActionReconciliation };
+type ExportAction = PilotageAction & { postCode: string; fencingCategories: Array<keyof typeof categoryLabels>; notes: string | null; comment: string | null; entered?: ActionReconciliation; figures?: AnalysisFigures };
 export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }: {
   summary: FiscalYearSummary; actions: ExportAction[]; vigilance: VigilancePoint[]; asOfDate?: Date | null;
 }) {
@@ -42,6 +43,11 @@ export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }:
   const alerts = workbook.addWorksheet("Vigilance");
   alerts.addRow(["Niveau", "Poste", "Message"]);
   for (const point of vigilance) alerts.addRow([{ red: "Rouge", orange: "Orange", info: "Information" }[point.level], point.postCode, point.message]);
+  const monthly = workbook.addWorksheet("Par mois");
+  monthly.addRow(["Mois", "Actions", "Budget FFE", "Réalisé FFE", "Reste à venir FFE", "Atterrissage FFE (total)", "Marge"]);
+  const periods = buildPeriodTable(actions.map(action => ({ plannedMonth: action.plannedMonth,
+    figures: action.figures ?? computeActionFigures(action, { asOfDate: asOfDate ?? null, fiscalYearLabel: summary.fiscalYearLabel }) })), analysisPeriods("month", summary.fiscalYearLabel), false);
+  for (const row of [...periods.rows, periods.undated, periods.total]) monthly.addRow([row.label, row.count, row.budget, row.actual, row.remaining, row.landing, row.margin]);
   for (const sheet of workbook.worksheets) {
     sheet.views = [{ state: "frozen", ySplit: 1 }];
     sheet.eachRow(row => row.eachCell(cell => { cell.font = { name: "Arial", size: 10 }; cell.alignment = { vertical: "top", wrapText: true }; }));
@@ -58,6 +64,8 @@ export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate }:
   for (let column = 2; column <= 7; column++) synthesis.getColumn(column).numFmt = '# ##0 €';
   for (let column = 6; column <= 17; column++) details.getColumn(column).numFmt = '# ##0 €';
   for (const column of [20, 21]) details.getColumn(column).numFmt = '# ##0 €';
+  for (let column = 3; column <= 7; column++) monthly.getColumn(column).numFmt = '# ##0 €';
+  monthly.lastRow!.eachCell(cell => { cell.font = { name: "Arial", size: 10, bold: true }; });
   for (const row of [total, restitution, margin, actionTotals]) row.eachCell(cell => { cell.font = { name: "Arial", size: 10, bold: true }; });
   return workbook;
 }

@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 import { pilotageAction, post } from "./budget-fixtures";
 
 const db = vi.hoisted(() => ({ fiscalYear: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
-  expense: { groupBy: vi.fn(), aggregate: vi.fn() },
+  expense: { groupBy: vi.fn(), aggregate: vi.fn(), findMany: vi.fn() },
   budgetPost: { findMany: vi.fn() }, budgetAction: { findMany: vi.fn() }, budgetSnapshot: { findFirst: vi.fn(), findMany: vi.fn() } }));
 const authenticate = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -38,6 +38,7 @@ beforeEach(() => {
   db.budgetAction.findMany.mockImplementation(async ({ where }) => where.post.fiscalYearId === "previous" ? [{ ...action().sourceAction, postId: post.id }] : [action()]);
   db.budgetSnapshot.findFirst.mockResolvedValue({ asOfDate: new Date("2026-10-25") });
   db.budgetSnapshot.findMany.mockResolvedValue([]);
+  db.expense.findMany.mockResolvedValue([]);
   db.expense.groupBy.mockResolvedValue([]);
   db.expense.aggregate.mockResolvedValue({ _sum: { amount: null }, _count: { _all: 0 } });
 });
@@ -98,6 +99,8 @@ describe("lecture et export de la préparation", () => {
   it("expose aussi la phase, la phrase et les références dans le pilotage", async () => {
     const data = (await loadPilotage("2027"))!;
     expect(data.fiscalYear.phase).toBe("PREPARATION");
+    expect(data.actions[0].team).toBe("M20");
+    expect(data.natures).toEqual([]);
     expect(data.headline).toContain("de budget FFE");
     expect(data.construction.posts[0].lines[0].previousActual).toBe(13640);
   });
@@ -116,6 +119,21 @@ describe("lecture et export de la préparation", () => {
     expect(data.actions[0].figures).toEqual(baseline.actions[0].figures);
     expect(data.summary).toEqual(baseline.summary);
     expect(baseline.actions[0].entered).toEqual({ amount: 0, count: 0, notBooked: 0 });
+  });
+  it("regroupe les natures par nom et mois UTC dans les bornes de l’année civile", async () => {
+    db.expense.findMany.mockResolvedValue([
+      { amount: decimal(15.25), date: new Date("2027-09-02"), category: { name: "Transport" } },
+      { amount: decimal(0.1), date: new Date("2027-03-01T00:30:00+01:00"), category: { name: "Repas" } },
+      { amount: decimal(0.2), date: new Date("2027-02-15"), category: { name: "Repas" } },
+      { amount: decimal(10), date: new Date("2027-01-02"), category: { name: "Transport" } },
+    ]);
+    db.budgetPost.findMany.mockResolvedValue([{ ...post, kind: "OPERATING" }]);
+    db.budgetAction.findMany.mockImplementation(async ({ where }) => where.post.fiscalYearId === "previous" ? [] : [{ ...action(), fencingCategories: [] }]);
+    const data = (await loadPilotage("2027"))!;
+    expect(db.expense.findMany).toHaveBeenCalledWith({ where: { date: { gte: new Date("2027-01-01T00:00:00.000Z"), lt: new Date("2028-01-01T00:00:00.000Z") } },
+      select: { amount: true, date: true, category: { select: { name: true } } } });
+    expect(data.actions[0].team).toBe("COMMISSION");
+    expect(data.natures).toEqual([{ name: "Repas", month: 2, amount: 0.3 }, { name: "Transport", month: 1, amount: 10 }, { name: "Transport", month: 9, amount: 15.25 }]);
   });
   it("donne à l’entraîneur le poids lecture seule", () => {
     expect(roleLabels.CONTRIBUTOR).toBe("Entraîneur (préparation du budget)");
