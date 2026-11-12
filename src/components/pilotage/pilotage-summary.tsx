@@ -74,6 +74,7 @@ export function PilotageSummary({ data, onPost }: { data: PilotageData; onPost: 
     <Card className="shadow-institutional"><CardHeader><CardTitle>Point budgétaire à copier</CardTitle></CardHeader><CardContent className="space-y-4">
       <div data-print-hide className="flex flex-wrap gap-2"><Button onClick={() => void copy()}><Copy className="mr-2 h-4 w-4" /><span aria-live="polite">{copied ? "Copié" : "Copier le texte"}</span></Button>
         <Button asChild variant="outline"><a href={"/api/pilotage/export?fiscalYear=" + encodeURIComponent(data.fiscalYear.label)} download><Download className="mr-2 h-4 w-4" />Exporter en Excel</a></Button>
+        <Button asChild variant="outline"><a href={"/api/pilotage/export-matrix?fiscalYear=" + encodeURIComponent(data.fiscalYear.label)} download><Download className="mr-2 h-4 w-4" />Exporter au format matrice FFE</a></Button>
         <Button variant="outline" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />Imprimer / PDF</Button>
       </div><ErrorMessage message={error} /><div className="whitespace-pre-wrap rounded-lg bg-slate-50 p-5 text-sm leading-7">{data.reportText}</div>
     </CardContent></Card>
