@@ -93,7 +93,7 @@ function PilotageModuleContent({ canManage }: { canManage: boolean }) {
       {view === "synthese" && <PilotageSummary data={data} onPost={code => changeView("actions", code)} />}
       {view === "actions" && <PilotageActions data={data} canManage={canManage} postCode={postCode} onPostChange={code => changeView("actions", code)} onChanged={() => setVersion(value => value + 1)} />}
       {view === "analyses" && <PilotageAnalysis data={data} />}
-      {view === "recettes" && <PilotageClubIncome data={data} />}
+      {view === "recettes" && <PilotageClubIncome data={data} canManage={canManage} onChanged={() => setVersion(value => value + 1)} />}
       {view === "construction" && <BudgetConstruction data={data.construction} />}
       {view === "historique" && <PilotageHistory data={data} />}
     </>}

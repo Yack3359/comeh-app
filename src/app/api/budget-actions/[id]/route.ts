@@ -24,6 +24,15 @@ export async function PATCH(request: Request, context: Context) {
           throw new z.ZodError([{ code: "custom", path: ["revisionReason"], message: "Un motif est obligatoire lorsqu’un montant révisé change" }]);
         }
         validateAdjustment(serializeBudgetAction(current), body.data);
+        if (["clubIncomeWaived", "clubIncomeFollowUp", "clubIncomeNote"].some(field => field in body.data)) {
+          const resulting = { ...serializeBudgetAction(current), ...body.data };
+          const expected = resulting.status === "CANCELLED" || resulting.status === "OPTION" ? 0 : resulting.revisedClubIncome;
+          const ceiling = Math.max(expected - (resulting.actualClubIncome ?? 0), 0);
+          if (resulting.clubIncomeWaived > ceiling + 0.005) throw new z.ZodError([{ code: "custom", path: ["clubIncomeWaived"],
+            message: "Le montant annulé dépasse ce qui reste à encaisser" }]);
+          if (resulting.clubIncomeWaived > 0 && !resulting.clubIncomeNote?.trim()) throw new z.ZodError([{ code: "custom", path: ["clubIncomeNote"],
+            message: "Expliquez pourquoi cette recette est annulée" }]);
+        }
         return tx.budgetAction.update({ where: { id: current.id }, data: {
           ...body.data, ...(body.data.status !== undefined ? { includedInBudget: includedInBudgetForStatus(body.data.status, current.includedInBudget) } : {}),
           ...(body.data.label !== undefined && current.matrixKey !== null ? { matrixKey: normalizeMatrixLabel(body.data.label) } : {}),

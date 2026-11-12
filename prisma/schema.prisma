@@ -447,6 +447,9 @@ model BudgetAction {
   actualGross         Decimal?            @map("actual_gross") @db.Decimal(12, 2)
   actualClubIncome    Decimal?            @map("actual_club_income") @db.Decimal(12, 2)
   actualFederation    Decimal?            @map("actual_federation") @db.Decimal(12, 2)
+  clubIncomeWaived    Decimal             @default(0) @map("club_income_waived") @db.Decimal(12, 2)
+  clubIncomeFollowUp  String?             @map("club_income_follow_up")
+  clubIncomeNote      String?             @map("club_income_note")
   notes               String?
   comment             String?             @map("comment")
   sortOrder           Int                 @default(0) @map("sort_order")

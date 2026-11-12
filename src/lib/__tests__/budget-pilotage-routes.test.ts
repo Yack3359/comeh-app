@@ -21,7 +21,7 @@ import { POST as createAction } from "@/app/api/budget-actions/route";
 import { PATCH as patchAction } from "@/app/api/budget-actions/[id]/route";
 
 const action = () => ({ ...pilotageAction(), ...existingAction(), postId: post.id, post: { ...post },
-  initialGross: 5000, initialClubIncome: 1000, comment: null });
+  initialGross: 5000, initialClubIncome: 1000, comment: null, clubIncomeWaived: 0, clubIncomeFollowUp: null, clubIncomeNote: null });
 async function upload(fields: Record<string, string> = {}) {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(await matrixWorkbook().xlsx.writeBuffer())]), "matrix.xlsx");
@@ -107,5 +107,38 @@ describe("manual action API inclusion", () => {
       expect(authenticate.mock.lastCall?.[1]).toEqual(["ADMIN", "COMEH_MEMBER"]);
       expect(db.budgetAction.update.mock.lastCall?.[0].data).toMatchObject({ status, includedInBudget: status === "CANCELLED" ? current : included, settled: null });
     }
+  });
+});
+
+describe("suivi des recettes clubs par PATCH", () => {
+  it.each([
+    [{ clubIncomeWaived: 81, clubIncomeNote: "Accord" }, "Le montant annulé dépasse ce qui reste à encaisser"],
+    [{ clubIncomeWaived: 30 }, "Expliquez pourquoi cette recette est annulée"],
+    [{ clubIncomeWaived: 30, clubIncomeNote: "   " }, "Expliquez pourquoi cette recette est annulée"],
+    [{ clubIncomeWaived: 30, status: "CANCELLED", clubIncomeNote: "Accord" }, "Le montant annulé dépasse ce qui reste à encaisser"],
+    [{ clubIncomeWaived: 30, status: "OPTION", clubIncomeNote: "Accord" }, "Le montant annulé dépasse ce qui reste à encaisser"],
+    [{ clubIncomeWaived: 30, revisedClubIncome: 40, revisionReason: "Révision", clubIncomeNote: "Accord" }, "Le montant annulé dépasse ce qui reste à encaisser"],
+  ])("refuse une annulation invalide %j", async (body, message) => {
+    db.budgetAction.findUniqueOrThrow.mockResolvedValue({ ...action(), revisedClubIncome: 100, actualClubIncome: 20 });
+    const response = await patchAction(jsonRequest("PATCH", body as object), { params: { id: "old" } });
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(await response.json())).toContain(message);
+    expect(db.budgetAction.update).not.toHaveBeenCalled();
+  });
+  it("accepte l’annulation au plafond avec explication, sans motif de révision", async () => {
+    db.budgetAction.findUniqueOrThrow.mockResolvedValue({ ...action(), revisedClubIncome: 100, actualClubIncome: 20 });
+    const body = { clubIncomeWaived: 80, clubIncomeFollowUp: "DISPUTED", clubIncomeNote: "  Accord du club  " };
+    const response = await patchAction(jsonRequest("PATCH", body), { params: { id: "old" } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ clubIncomeWaived: 80, clubIncomeFollowUp: "DISPUTED", clubIncomeNote: "Accord du club" });
+    expect(db.budgetAction.update.mock.lastCall?.[0].data).not.toHaveProperty("revisionReason");
+    expect(authenticate.mock.lastCall?.[1]).toEqual(["ADMIN", "COMEH_MEMBER"]);
+  });
+  it("valide aussi les valeurs conservées et ignore les modifications sans champ de suivi", async () => {
+    db.budgetAction.findUniqueOrThrow.mockResolvedValue({ ...action(), revisedClubIncome: 100, actualClubIncome: 20, clubIncomeWaived: 80, clubIncomeNote: "Accord" });
+    expect((await patchAction(jsonRequest("PATCH", { clubIncomeFollowUp: "REMINDED" }), { params: { id: "old" } })).status).toBe(200);
+    expect((await patchAction(jsonRequest("PATCH", { clubIncomeNote: null }), { params: { id: "old" } })).status).toBe(400);
+    expect((await patchAction(jsonRequest("PATCH", { status: "CANCELLED" }), { params: { id: "old" } })).status).toBe(200);
+    expect((await patchAction(jsonRequest("PATCH", { status: "CANCELLED", clubIncomeFollowUp: "REMINDED" }), { params: { id: "old" } })).status).toBe(400);
   });
 });

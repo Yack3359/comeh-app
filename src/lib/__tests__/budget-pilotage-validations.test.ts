@@ -81,3 +81,21 @@ describe("upload request size", () => {
     expect(formData).toHaveBeenCalledOnce();
   });
 });
+
+describe("validation du suivi des recettes clubs", () => {
+  it("accepte les montants, suivis et explications sans motif de révision", () => {
+    const current = { revisedGross: 100, revisedClubIncome: 20, revisedFederation: 80 };
+    for (const clubIncomeFollowUp of [null, "REMINDED", "PROMISED", "DISPUTED"]) {
+      const update = budgetActionUpdateSchema.parse({ clubIncomeWaived: 12.34, clubIncomeFollowUp, clubIncomeNote: "  Accord  " });
+      expect(update).toEqual({ clubIncomeWaived: 12.34, clubIncomeFollowUp, clubIncomeNote: "Accord" });
+      expect(requiresRevisionReason(current, update)).toBe(false);
+    }
+    for (const clubIncomeNote of [null, "", "x".repeat(500)]) expect(budgetActionUpdateSchema.parse({ clubIncomeNote })).toEqual({ clubIncomeNote });
+    expect(budgetActionUpdateSchema.parse({ clubIncomeWaived: 0 })).toEqual({ clubIncomeWaived: 0 });
+  });
+  it.each([{ clubIncomeWaived: -1 }, { clubIncomeWaived: null }, { clubIncomeWaived: 1.001 }, { clubIncomeWaived: Infinity },
+    { clubIncomeWaived: 10_000_000_000 }, { clubIncomeWaived: "1" }, { clubIncomeFollowUp: "OTHER" }, { clubIncomeFollowUp: 1 },
+    { clubIncomeNote: "x".repeat(501) }, { clubIncomeNote: 42 }])("refuse %j", update => {
+    expect(budgetActionUpdateSchema.safeParse(update).success).toBe(false);
+  });
+});

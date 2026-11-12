@@ -86,21 +86,22 @@ describe("export des recettes clubs", () => {
     const actions = [pilotageAction({ id: "partiel", label: "Stage avril", plannedMonth: 4, actualClubIncome: 20 }),
       pilotageAction({ id: "attendu", label: "Stage décembre", plannedMonth: 12 }),
       pilotageAction({ id: "encaisse", label: "Recette sans budget", revisedClubIncome: 0, actualClubIncome: 10 })]
-      .map(action => ({ ...action, postCode: post.code, fencingCategories: [], notes: null, comment: null }));
+      .map(action => ({ ...action, postCode: post.code, fencingCategories: [], notes: null, comment: null,
+        clubIncomeWaived: action.id === "partiel" ? 10 : 0, clubIncomeFollowUp: action.id === "partiel" ? "REMINDED" : null, clubIncomeNote: action.id === "partiel" ? "Accord" : null }));
     const summary = computeFiscalYearSummary({ fiscalYear: { label: "2026", restitutionAmount: 0 }, posts: [post], actions, asOfDate });
     const clubIncome = buildClubIncome([post], actions, { asOfDate, fiscalYearLabel: "2026" });
     const workbook = buildPilotageWorkbook({ summary, actions, vigilance: [], asOfDate, clubIncome });
     expect(workbook.worksheets.map(sheet => sheet.name)).toEqual(["Synthèse", "Actions", "Vigilance", "Par mois", "Recettes clubs"]);
     const sheet = workbook.getWorksheet("Recettes clubs")!;
-    const values = (row: number) => Array.from({ length: 8 }, (_, index) => sheet.getRow(row).getCell(index + 1).value);
-    expect(values(1)).toEqual(["Poste", "Action", "Mois", "Attendu", "Encaissé", "Reste à encaisser", "État", "En retard"]);
-    expect(values(2)).toEqual(["B", "Stage avril", "avr.", 50, 20, 30, "Partiel", "Oui"]);
-    expect(values(3)).toEqual(["B", "Stage décembre", "déc.", 50, 0, 50, "À encaisser", ""]);
-    expect(values(4)).toEqual(["B", "Recette sans budget", "—", 0, 10, 0, "Encaissé", ""]);
-    expect(values(5)).toEqual(["Total", "", "", 100, 30, 80, null, null]);
+    const values = (row: number) => Array.from({ length: 11 }, (_, index) => sheet.getRow(row).getCell(index + 1).value);
+    expect(values(1)).toEqual(["Poste", "Action", "Mois", "Attendu", "Encaissé", "Annulé", "Reste à encaisser", "État", "En retard", "Suivi", "Explication"]);
+    expect(values(2)).toEqual(["B", "Stage avril", "avr.", 50, 20, 10, 20, "Partiel", "Oui", "Relancé", "Accord"]);
+    expect(values(3)).toEqual(["B", "Stage décembre", "déc.", 50, 0, 0, 50, "À encaisser", "", "", null]);
+    expect(values(4)).toEqual(["B", "Recette sans budget", "—", 0, 10, 0, 0, "Encaissé", "", "", null]);
+    expect(values(5)).toEqual(["Total", "", "", 100, 30, 10, 70, null, null, null, null]);
     expect(sheet.getRow(5).getCell(1).font.bold).toBe(true);
     expect(sheet.getRow(5).getCell(6).font.bold).toBe(true);
-    expect([4, 5, 6].map(column => sheet.getColumn(column).numFmt)).toEqual(Array(3).fill('# ##0 €'));
+    expect([4, 5, 6, 7].map(column => sheet.getColumn(column).numFmt)).toEqual(Array(4).fill('# ##0 €'));
   });
   it("ajoute aussi la feuille vide avec un total nul quand les recettes sont fournies", () => {
     const summary = computeFiscalYearSummary({ fiscalYear: { label: "2026", restitutionAmount: 0 }, posts: [], actions: [] });
@@ -108,6 +109,6 @@ describe("export des recettes clubs", () => {
     const sheet = buildPilotageWorkbook({ summary, actions: [], vigilance: [], clubIncome }).getWorksheet("Recettes clubs")!;
     expect(sheet.rowCount).toBe(2);
     expect(sheet.getRow(2).getCell(1).value).toBe("Total");
-    expect([4, 5, 6].map(column => sheet.getRow(2).getCell(column).value)).toEqual([0, 0, 0]);
+    expect([4, 5, 6, 7].map(column => sheet.getRow(2).getCell(column).value)).toEqual([0, 0, 0, 0]);
   });
 });

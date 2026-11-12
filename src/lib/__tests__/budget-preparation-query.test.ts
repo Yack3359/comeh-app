@@ -22,10 +22,11 @@ const year = { id: "fy", label: "2027", phase: "PREPARATION", preparationDeadlin
 const previous = { ...year, id: "previous", label: "2026", phase: "EXECUTION" };
 const action = () => ({ ...pilotageAction(), id: "new", postId: post.id, label: "Doha", initialGross: decimal(0), initialClubIncome: decimal(0), initialFederation: decimal(0),
   revisedGross: decimal(30500), revisedClubIncome: decimal(11000), revisedFederation: decimal(19500), adjustmentFederation: decimal(0), previousYearAmount: decimal(19500),
+  clubIncomeWaived: 0, clubIncomeFollowUp: null, clubIncomeNote: null,
   actualGross: null, actualFederation: null, actualClubIncome: null, estimatedFederation: null, proposalStatus: "VALIDATED", amountsConfirmed: true,
   fencingCategories: ["M20"], plannedMonth: 2, athleteCount: 4, staffCount: 2, dayCount: 3, comment: "À confirmer avec les clubs",
   status: "OPTION", includedInBudget: false, proposedBy: { name: "Entraîneur" }, post: { ...post, kind: "COMPETITION" },
-  sourceAction: { ...pilotageAction(), id: "old", label: "Doha", revisedGross: decimal(30500), revisedClubIncome: decimal(11000), revisedFederation: decimal(19500),
+  sourceAction: { ...pilotageAction(), clubIncomeWaived: 0, clubIncomeFollowUp: null, clubIncomeNote: null, id: "old", label: "Doha", revisedGross: decimal(30500), revisedClubIncome: decimal(11000), revisedFederation: decimal(19500),
     actualGross: decimal(20657), actualClubIncome: decimal(7017), actualFederation: decimal(13640), initialGross: decimal(30500), initialClubIncome: decimal(11000),
     post: { fiscalYear: { label: "2026" } } },
 });
@@ -102,7 +103,7 @@ describe("lecture et export de la préparation", () => {
     expect(data.fiscalYear.phase).toBe("PREPARATION");
     expect(data.actions[0].team).toBe("M20");
     expect(data.natures).toEqual([]);
-    expect(data.clubIncome).toEqual({ lines: [], posts: [], totals: { expected: 0, collected: 0, outstanding: 0, overdue: 0, count: 0 } });
+    expect(data.clubIncome).toEqual({ lines: [], posts: [], totals: { expected: 0, collected: 0, waived: 0, outstanding: 0, overdue: 0, count: 0 } });
     expect(data.headline).toContain("de budget FFE");
     expect(data.construction.posts[0].lines[0].previousActual).toBe(13640);
   });
@@ -130,9 +131,9 @@ describe("lecture et export de la préparation", () => {
     db.expense.groupBy.mockResolvedValue([{ budgetActionId: "new", _sum: { amount: decimal(100) }, _count: { _all: 1 } }]);
     const data = (await loadPilotage("2027"))!;
     expect(data.clubIncome).toEqual({
-      lines: [{ id: "new", label: "Doha", postId: post.id, postCode: post.code, plannedMonth: 2, expected: 11000, collected: 7017, outstanding: 3983, state: "PARTIAL", overdue: true }],
-      posts: [{ code: post.code, label: post.label, expected: 11000, collected: 7017, outstanding: 3983, overdue: 3983, count: 1 }],
-      totals: { expected: 11000, collected: 7017, outstanding: 3983, overdue: 3983, count: 1 },
+      lines: [{ id: "new", label: "Doha", postId: post.id, postCode: post.code, plannedMonth: 2, expected: 11000, collected: 7017, waived: 0, followUp: null, note: null, outstanding: 3983, state: "PARTIAL", overdue: true }],
+      posts: [{ code: post.code, label: post.label, expected: 11000, collected: 7017, waived: 0, outstanding: 3983, overdue: 3983, count: 1 }],
+      totals: { expected: 11000, collected: 7017, waived: 0, outstanding: 3983, overdue: 3983, count: 1 },
     });
     const point = { level: "orange", actionId: "new", postCode: post.code, message: "Doha : 3 983 € de recettes clubs restent à encaisser alors que l’action est passée" };
     expect(data.vigilance[data.vigilance.length - 1]).toEqual(point);
@@ -143,7 +144,7 @@ describe("lecture et export de la préparation", () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await response.arrayBuffer());
     const sheet = workbook.getWorksheet("Recettes clubs")!;
-    expect([4, 5, 6, 7, 8].map(column => sheet.getRow(2).getCell(column).value)).toEqual([11000, 7017, 3983, "Partiel", "Oui"]);
+    expect([4, 5, 6, 7, 8, 9, 10, 11].map(column => sheet.getRow(2).getCell(column).value)).toEqual([11000, 7017, 0, 3983, "Partiel", "Oui", "", null]);
   });
   it("regroupe les natures par nom et mois UTC dans les bornes de l’année civile", async () => {
     db.expense.findMany.mockResolvedValue([

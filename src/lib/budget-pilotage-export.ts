@@ -3,7 +3,7 @@ import { analysisPeriods, buildPeriodTable, type AnalysisFigures } from "./budge
 import type { buildClubIncome } from "./budget-club-income";
 import type { ActionReconciliation } from "./budget-reconciliation";
 import { computeActionFigures, type FiscalYearSummary, type PilotageAction, type VigilancePoint } from "./budget-pilotage";
-import { categoryLabels, flagLabels, monthLabel, statusLabels } from "./budget-pilotage-labels";
+import { categoryLabels, clubIncomeFollowUpLabels, flagLabels, monthLabel, statusLabels } from "./budget-pilotage-labels";
 
 type ExportAction = PilotageAction & { postCode: string; fencingCategories: Array<keyof typeof categoryLabels>; notes: string | null; comment: string | null; entered?: ActionReconciliation; figures?: AnalysisFigures };
 export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate, clubIncome }: {
@@ -51,10 +51,11 @@ export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate, c
   for (const row of [...periods.rows, periods.undated, periods.total]) monthly.addRow([row.label, row.count, row.budget, row.actual, row.remaining, row.landing, row.margin]);
   const income = clubIncome ? workbook.addWorksheet("Recettes clubs") : null;
   if (income && clubIncome) {
-    income.addRow(["Poste", "Action", "Mois", "Attendu", "Encaissé", "Reste à encaisser", "État", "En retard"]);
-    for (const line of clubIncome.lines) income.addRow([line.postCode, line.label, monthLabel(line.plannedMonth), line.expected, line.collected, line.outstanding,
-      { COLLECTED: "Encaissé", PARTIAL: "Partiel", PENDING: "À encaisser" }[line.state], line.overdue ? "Oui" : ""]);
-    income.addRow(["Total", "", "", clubIncome.totals.expected, clubIncome.totals.collected, clubIncome.totals.outstanding]);
+    income.addRow(["Poste", "Action", "Mois", "Attendu", "Encaissé", "Annulé", "Reste à encaisser", "État", "En retard", "Suivi", "Explication"]);
+    for (const line of clubIncome.lines) income.addRow([line.postCode, line.label, monthLabel(line.plannedMonth), line.expected, line.collected, line.waived, line.outstanding,
+      { COLLECTED: line.waived > 0.5 ? "Soldé" : "Encaissé", PARTIAL: "Partiel", PENDING: "À encaisser" }[line.state], line.overdue ? "Oui" : "",
+      line.followUp && line.followUp in clubIncomeFollowUpLabels ? clubIncomeFollowUpLabels[line.followUp as keyof typeof clubIncomeFollowUpLabels] : "", line.note]);
+    income.addRow(["Total", "", "", clubIncome.totals.expected, clubIncome.totals.collected, clubIncome.totals.waived, clubIncome.totals.outstanding]);
   }
   for (const sheet of workbook.worksheets) {
     sheet.views = [{ state: "frozen", ySplit: 1 }];
@@ -77,7 +78,7 @@ export function buildPilotageWorkbook({ summary, actions, vigilance, asOfDate, c
   for (const row of [total, restitution, margin, actionTotals]) row.eachCell(cell => { cell.font = { name: "Arial", size: 10, bold: true }; });
   if (income) {
     income.getColumn(2).width = 52;
-    for (let column = 4; column <= 6; column++) income.getColumn(column).numFmt = '# ##0 €';
+    for (let column = 4; column <= 7; column++) income.getColumn(column).numFmt = '# ##0 €';
     income.lastRow!.eachCell(cell => { cell.font = { name: "Arial", size: 10, bold: true }; });
   }
   return workbook;

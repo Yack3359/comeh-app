@@ -33,6 +33,8 @@ export const budgetActionCreateSchema = z.object({
   fencingCategories: shared.fencingCategories.default([]), notes: shared.notes.optional(), comment: shared.comment.optional(), competitionId: shared.competitionId.optional(),
 }).strict();
 export const budgetActionUpdateSchema = z.object({
+  clubIncomeWaived: amount, clubIncomeFollowUp: z.enum(["REMINDED", "PROMISED", "DISPUTED"]).nullable(),
+  clubIncomeNote: z.string().trim().max(500).nullable(),
   adjustmentFederation: z.number().finite().min(-9_999_999_999.99).max(9_999_999_999.99).multipleOf(0.01, "Deux décimales au maximum"),
   adjustmentReason: z.string().trim().min(1, "Motif d’ajustement requis").max(2000),
   ...shared, includedInBudget: z.boolean(), revisionReason: z.string().trim().min(1, "Motif de révision requis").max(2000),

@@ -5,20 +5,20 @@ const post = { id: "post-b", code: "B", label: "Stages" };
 const context = { asOfDate: new Date("2026-10-25"), fiscalYearLabel: "2026" };
 type IncomeAction = Parameters<typeof buildClubIncome>[1][number];
 const action = (overrides: Partial<IncomeAction> = {}): IncomeAction => ({ id: "a", label: "Stage", postId: post.id, postCode: post.code,
-  plannedMonth: 4, status: "BUDGETED", revisedClubIncome: 100, actualClubIncome: null, ...overrides });
+  clubIncomeWaived: 0, clubIncomeFollowUp: null, clubIncomeNote: null, plannedMonth: 4, status: "BUDGETED", revisedClubIncome: 100, actualClubIncome: null, ...overrides });
 
 describe("recettes clubs par action", () => {
   it.each(["CANCELLED", "OPTION"])("annule l’attendu pour %s et conserve les encaissements", status => {
     expect(buildClubIncome([post], [action({ status })], context).lines).toEqual([]);
     expect(buildClubIncome([post], [action({ status, actualClubIncome: 20 })], context).lines).toEqual([
-      { id: "a", label: "Stage", postId: post.id, postCode: post.code, plannedMonth: 4, expected: 0, collected: 20, outstanding: 0, state: "COLLECTED", overdue: false },
+      { id: "a", label: "Stage", postId: post.id, postCode: post.code, plannedMonth: 4, expected: 0, collected: 20, waived: 0, followUp: null, note: null, outstanding: 0, state: "COLLECTED", overdue: false },
     ]);
   });
   it("conserve l’encaissé sans attendu et ignore les actions sans recette", () => {
     const result = buildClubIncome([post], [action({ revisedClubIncome: 0, actualClubIncome: 25 }), action({ id: "vide", revisedClubIncome: 0 })], context);
     expect(result.lines).toHaveLength(1);
     expect(result.lines[0]).toMatchObject({ expected: 0, collected: 25, outstanding: 0, state: "COLLECTED", overdue: false });
-    expect(result.totals).toEqual({ expected: 0, collected: 25, outstanding: 0, overdue: 0, count: 1 });
+    expect(result.totals).toEqual({ expected: 0, collected: 25, waived: 0, outstanding: 0, overdue: 0, count: 1 });
   });
   it.each(["BUDGETED", "COMMITTED", "DONE", "UNBUDGETED"])("garde le budget révisé comme attendu pour %s", status => {
     expect(buildClubIncome([post], [action({ status })], context).lines[0].expected).toBe(100);
@@ -55,13 +55,13 @@ describe("totaux des recettes clubs", () => {
     ], context);
     expect(result.lines.map(line => line.id)).toEqual(["b1", "c1", "b2"]);
     expect(result.posts).toEqual([
-      { code: "C", label: "Compétitions", expected: 30, collected: 10, outstanding: 20, overdue: 0, count: 1 },
-      { code: "B", label: "Stages", expected: 3.3, collected: 0.3, outstanding: 3, overdue: 3, count: 2 },
+      { code: "C", label: "Compétitions", expected: 30, collected: 10, waived: 0, outstanding: 20, overdue: 0, count: 1 },
+      { code: "B", label: "Stages", expected: 3.3, collected: 0.3, waived: 0, outstanding: 3, overdue: 3, count: 2 },
     ]);
-    expect(result.totals).toEqual({ expected: 33.3, collected: 10.3, outstanding: 23, overdue: 3, count: 3 });
+    expect(result.totals).toEqual({ expected: 33.3, collected: 10.3, waived: 0, outstanding: 23, overdue: 3, count: 3 });
   });
   it("renvoie des totaux nuls sans ligne", () => {
-    expect(buildClubIncome([post], [], context)).toEqual({ lines: [], posts: [], totals: { expected: 0, collected: 0, outstanding: 0, overdue: 0, count: 0 } });
+    expect(buildClubIncome([post], [], context)).toEqual({ lines: [], posts: [], totals: { expected: 0, collected: 0, waived: 0, outstanding: 0, overdue: 0, count: 0 } });
   });
 });
 describe("vigilance des recettes clubs", () => {
@@ -73,5 +73,24 @@ describe("vigilance des recettes clubs", () => {
       { level: "orange", postCode: "B", actionId: "b", message: "Compétition : 80 € de recettes clubs restent à encaisser alors que l’action est passée" },
     ]);
     expect(listClubIncomePoints([])).toEqual([]);
+  });
+});
+
+describe("annulation et suivi des recettes clubs", () => {
+  it.each([[30, 30, 50, "PARTIAL", true], [80, 80, 0, "COLLECTED", false], [150, 80, 0, "COLLECTED", false]] as const)(
+    "plafonne une annulation de %s euros et recalcule l’état et le retard", (clubIncomeWaived, waived, outstanding, state, overdue) => {
+      const result = buildClubIncome([post], [action({ actualClubIncome: 20, clubIncomeWaived, clubIncomeFollowUp: "DISPUTED", clubIncomeNote: "Accord de la commission" })], context);
+      expect(result.lines[0]).toMatchObject({ expected: 100, collected: 20, waived, outstanding, state, overdue, followUp: "DISPUTED", note: "Accord de la commission" });
+      expect(result.totals).toMatchObject({ waived, outstanding, overdue: overdue ? outstanding : 0 });
+      expect(result.posts[0].waived).toBe(waived);
+    });
+  it("arrondit le total annulé au centime", () => {
+    const result = buildClubIncome([post], [action({ clubIncomeWaived: 0.1 }), action({ id: "b", clubIncomeWaived: 0.2 })], context);
+    expect(result.totals.waived).toBe(0.3);
+  });
+  it.each([["REMINDED", "Relancé"], ["PROMISED", "Paiement promis"], ["DISPUTED", "Contesté"]])("ajoute le suivi %s au message sans effacer le retard", (clubIncomeFollowUp, label) => {
+    const { lines } = buildClubIncome([post], [action({ clubIncomeFollowUp })], context);
+    expect(lines[0].overdue).toBe(true);
+    expect(listClubIncomePoints(lines)[0].message).toBe("Stage : 100 € de recettes clubs restent à encaisser alors que l’action est passée (" + label + ")");
   });
 });

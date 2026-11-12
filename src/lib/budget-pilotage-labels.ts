@@ -7,6 +7,7 @@ export const statusLabels: Record<BudgetActionStatus, string> = {
 export const flagLabels: Record<Flag, string> = {
   green: "Dans le budget", orange: "Atterrissage au-dessus du budget", red: "Budget dépassé",
 };
+export const clubIncomeFollowUpLabels = { REMINDED: "Relancé", PROMISED: "Paiement promis", DISPUTED: "Contesté" };
 export const categoryLabels = { SENIOR: "Sénior", U23: "U23", M20: "M20", M17: "M17", M15: "M15", M13: "M13" };
 export function monthLabel(month: number | null) {
   return month === null ? "—" : new Date(Date.UTC(2026, month - 1, 1)).toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" });
